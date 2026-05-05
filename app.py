@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 #  설정
 # ══════════════════════════════════════════════════════════════
 
-BASE_PATH      = r'C:\Users\rokaf'
+BASE_PATH = r'C:\Users\rokaf' if os.path.exists(r'C:\Users\rokaf\xgb_model.pkl') else '.'
 GEMINI_API_KEY = 'AIzaSyAO0zd2MztyPhpcuRO6FJNYTIR9NzCoNgo'
 GEMINI_URL     = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}'
 KMA_API_KEY    = 'vp8E47T_SiafBOO0_7omKg'
