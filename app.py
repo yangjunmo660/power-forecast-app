@@ -12,9 +12,14 @@ from datetime import datetime, timedelta
 # ══════════════════════════════════════════════════════════════
 
 BASE_PATH = r'C:\Users\rokaf' if os.path.exists(r'C:\Users\rokaf\xgb_model.pkl') else '.'
-GEMINI_API_KEY = 'AIzaSyAO0zd2MztyPhpcuRO6FJNYTIR9NzCoNgo'
-GEMINI_URL     = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}'
-KMA_API_KEY    = 'vp8E47T_SiafBOO0_7omKg'
+# API 키 - Streamlit Secrets 또는 로컬 secrets.toml에서 불러오기
+try:
+    GEMINI_API_KEY = st.secrets['GEMINI_API_KEY']
+    KMA_API_KEY    = st.secrets['KMA_API_KEY']
+except:
+    GEMINI_API_KEY = ''
+    KMA_API_KEY    = ''
+GEMINI_URL = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}'
 
 STATIONS = {
     '서울': 108,
