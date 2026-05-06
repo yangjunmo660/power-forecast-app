@@ -353,9 +353,9 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📁 학습 데이터")
     st.markdown("""
-    - 기간: 2021 ~ 2025년
-    - 전력 데이터: 515,584건
-    - 공휴일: 115일
+    - 기간: 2021 ~ 2026년
+    - 전력 데이터: 550,945건
+    - 공휴일: 137일
     """)
 
 
@@ -478,9 +478,9 @@ if model_loaded:
         st.plotly_chart(fig, use_container_width=True)
 
         # 기상 데이터 차트
+        st.markdown(f"### 🌡️ {selected_station_name} 기상 데이터 (전국 수요 영향 분석)")
+        st.info(f"💡 **{selected_station_name}** 지역의 기상 데이터를 조회하여 전국 전력 수요에 미치는 영향을 분석합니다. 기온이 높을수록 냉방 수요 증가, 낮을수록 난방 수요 증가로 전국 수요에 영향을 줍니다.")
         if weather_df is not None:
-            st.markdown(f"### 🌡️ {selected_station_name} 기상 데이터 (전국 수요 영향 분석)")
-            st.info(f"💡 **{selected_station_name}** 지역의 기상 데이터를 조회하여 전국 전력 수요에 미치는 영향을 분석합니다. 기온이 높을수록 냉방 수요 증가, 낮을수록 난방 수요 증가로 전국 수요에 영향을 줍니다.")
             col1, col2 = st.columns(2)
             with col1:
                 fig_temp = go.Figure()
