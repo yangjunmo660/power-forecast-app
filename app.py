@@ -442,7 +442,8 @@ if model_loaded:
         # 1시간 단위로 리샘플링 (5분 단위는 너무 많아서 느림)
         forecast_hourly = forecast_df.copy()
         forecast_hourly['날짜시간'] = pd.to_datetime(forecast_hourly['날짜시간'])
-        forecast_hourly = forecast_hourly.set_index('날짜시간').resample('1h').mean().reset_index()
+        numeric_cols = ['앙상블예측(MW)', '발전량기준(MW)', 'XGB예측(MW)', 'LGB예측(MW)']
+        forecast_hourly = forecast_hourly.set_index('날짜시간')[numeric_cols].resample('1h').mean().reset_index()
 
         # 일별 집계 (다운로드용)
         daily = forecast_df.groupby('날짜').agg({
