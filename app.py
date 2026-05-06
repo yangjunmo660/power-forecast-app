@@ -479,7 +479,39 @@ if model_loaded:
 
         # 기상 데이터 차트
         st.markdown(f"### 🌡️ {selected_station_name} 기상 데이터 (전국 수요 영향 분석)")
-        st.info(f"💡 **{selected_station_name}** 지역의 기상 데이터를 조회하여 전국 전력 수요에 미치는 영향을 분석합니다. 기온이 높을수록 냉방 수요 증가, 낮을수록 난방 수요 증가로 전국 수요에 영향을 줍니다.")
+
+        # 실시간 기상값 기반 동적 설명
+        weather_now = fetch_realtime_weather(selected_station_id)
+        if weather_now and weather_now.get('temp') is not None:
+            temp = weather_now['temp']
+            humi = weather_now['humi'] if weather_now.get('humi') else 0
+            if temp >= 30:
+                weather_msg = f"🔴 현재 {selected_station_name} 기온 {temp}°C — **폭염으로 냉방 수요 급증** 예상. 전국 전력 수요가 평소보다 크게 높아질 수 있습니다."
+                msg_type = 'error'
+            elif temp >= 23:
+                weather_msg = f"🟠 현재 {selected_station_name} 기온 {temp}°C — **더위로 냉방 수요 증가** 예상. 전국 전력 수요가 소폭 상승할 수 있습니다."
+                msg_type = 'warning'
+            elif temp >= 15:
+                weather_msg = f"🟢 현재 {selected_station_name} 기온 {temp}°C — **온화한 날씨로 수요 안정적**. 전국 전력 수요가 평소 수준으로 유지될 전망입니다."
+                msg_type = 'success'
+            elif temp >= 5:
+                weather_msg = f"🔵 현재 {selected_station_name} 기온 {temp}°C — **쌀쌀한 날씨로 난방 수요 증가** 예상. 전국 전력 수요가 소폭 상승할 수 있습니다."
+                msg_type = 'info'
+            else:
+                weather_msg = f"🟣 현재 {selected_station_name} 기온 {temp}°C — **한파로 난방 수요 급증** 예상. 전국 전력 수요가 평소보다 크게 높아질 수 있습니다."
+                msg_type = 'error'
+
+            if msg_type == 'error':
+                st.error(weather_msg)
+            elif msg_type == 'warning':
+                st.warning(weather_msg)
+            elif msg_type == 'success':
+                st.success(weather_msg)
+            else:
+                st.info(weather_msg)
+        else:
+            st.info(f"💡 **{selected_station_name}** 지역의 기상 데이터를 조회하여 전국 전력 수요에 미치는 영향을 분석합니다. 사이드바에서 실시간 기상 조회 버튼을 눌러주세요!")
+
         if weather_df is not None:
             col1, col2 = st.columns(2)
             with col1:
