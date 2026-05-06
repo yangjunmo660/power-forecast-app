@@ -161,7 +161,7 @@ def fetch_realtime_weather(station_id):
     for h in range(1, 4):
         try:
             from datetime import timedelta
-            tm = (datetime.now() - timedelta(hours=h)).replace(
+            tm = (datetime.utcnow() + timedelta(hours=9) - timedelta(hours=h)).replace(
                 minute=0, second=0, microsecond=0
             ).strftime('%Y%m%d%H%M')
 
@@ -364,7 +364,7 @@ with st.sidebar:
 
 st.markdown("# ⚡ 전력 수요 예측 시스템")
 st.markdown(f"**XGBoost + LightGBM 앙상블 | 2021~2026 학습 데이터 | 기상 지점: {selected_station_name}**")
-st.markdown(f"🕐 현재 시각: **{datetime.now().strftime('%Y-%m-%d %H:%M')}** 기준 실시간 예측")
+st.markdown(f"🕐 현재 시각: **{(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')}** 기준 실시간 예측")
 st.markdown("---")
 
 try:
@@ -675,7 +675,7 @@ if model_loaded:
         summary = {
             '항목': ['예측 기준 시각', '예측 기간', '기상 지점', '평균 수요', '최대 수요', '최소 수요', '평균 발전량 기준', '앙상블 MAPE', '사양 달성'],
             '값': [
-                datetime.now().strftime('%Y-%m-%d %H:%M'),
+                (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M'),
                 f'{forecast_days}일',
                 selected_station_name,
                 f'{avg_demand:,.1f} MW',
@@ -743,7 +743,7 @@ if model_loaded:
             - MAPE: 0.27% (사양 기준 2.6% 달성)
             - 예측 기간: {forecast_days}일
             - 기상 지점: {selected_station_name}
-            - 예측 기준 시각: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+            - 예측 기준 시각: {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')}
             - 평균 예측 수요: {avg_demand:,.0f} MW
             - 최대 예측 수요: {max_demand:,.0f} MW
             - 최소 예측 수요: {min_demand:,.0f} MW
