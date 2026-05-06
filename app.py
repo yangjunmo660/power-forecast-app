@@ -388,11 +388,17 @@ if model_loaded:
         forecast_df['날짜시간'] = pd.to_datetime(forecast_df['날짜시간'])
         forecast_df = forecast_df.head(forecast_days * 288)
 
-    avg_demand     = forecast_df['앙상블예측(MW)'].mean()
-    max_demand     = forecast_df['앙상블예측(MW)'].max()
-    min_demand     = forecast_df['앙상블예측(MW)'].min()
-    avg_gen        = forecast_df['발전량기준(MW)'].mean()
-    max_gen        = forecast_df['발전량기준(MW)'].max()
+    # 오늘 하루 데이터만 필터링
+    today = (datetime.utcnow() + timedelta(hours=9)).date()
+    today_df = forecast_df[pd.to_datetime(forecast_df['날짜시간']).dt.date == today]
+    if len(today_df) == 0:
+        today_df = forecast_df.head(288)  # 오늘 데이터 없으면 첫 하루치
+
+    avg_demand     = today_df['앙상블예측(MW)'].mean()
+    max_demand     = today_df['앙상블예측(MW)'].max()
+    min_demand     = today_df['앙상블예측(MW)'].min()
+    avg_gen        = today_df['발전량기준(MW)'].mean()
+    max_gen        = today_df['발전량기준(MW)'].max()
     current_demand = forecast_df['앙상블예측(MW)'].iloc[0]
     threshold_90   = max_demand * (threshold_pct / 100)
 
@@ -413,11 +419,11 @@ if model_loaded:
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_demand:,.0f}</div><div class="metric-label">평균 예측 수요 (MW)</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_demand:,.0f}</div><div class="metric-label">오늘 평균 예측 수요 (MW)</div></div>', unsafe_allow_html=True)
         with col2:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{max_demand:,.0f}</div><div class="metric-label">최대 예측 수요 (MW)</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-value">{max_demand:,.0f}</div><div class="metric-label">오늘 최대 예측 수요 (MW)</div></div>', unsafe_allow_html=True)
         with col3:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_gen:,.0f}</div><div class="metric-label">평균 발전량 기준 (MW)</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_gen:,.0f}</div><div class="metric-label">오늘 평균 발전량 기준 (MW)</div></div>', unsafe_allow_html=True)
         with col4:
             st.markdown(f'<div class="metric-card"><div class="metric-value">0.27%</div><div class="metric-label">앙상블 MAPE</div></div>', unsafe_allow_html=True)
 
@@ -433,6 +439,12 @@ if model_loaded:
 
         # 일별 집계
         forecast_df['날짜'] = forecast_df['날짜시간'].dt.date
+        # 1시간 단위로 리샘플링 (5분 단위는 너무 많아서 느림)
+        forecast_hourly = forecast_df.copy()
+        forecast_hourly['날짜시간'] = pd.to_datetime(forecast_hourly['날짜시간'])
+        forecast_hourly = forecast_hourly.set_index('날짜시간').resample('1h').mean().reset_index()
+
+        # 일별 집계 (다운로드용)
         daily = forecast_df.groupby('날짜').agg({
             '앙상블예측(MW)': 'mean',
             '발전량기준(MW)': 'mean',
@@ -442,22 +454,22 @@ if model_loaded:
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=daily['날짜'], y=daily['앙상블예측(MW)'],
-            name='앙상블 예측', line=dict(color='#1565c0', width=2.5),
+            x=forecast_hourly['날짜시간'], y=forecast_hourly['앙상블예측(MW)'],
+            name='앙상블 예측', line=dict(color='#1565c0', width=2),
             hovertemplate='%{x}<br>앙상블: %{y:,.0f} MW<extra></extra>'
         ))
         fig.add_trace(go.Scatter(
-            x=daily['날짜'], y=daily['발전량기준(MW)'],
+            x=forecast_hourly['날짜시간'], y=forecast_hourly['발전량기준(MW)'],
             name='발전량 기준 (×1.149)', line=dict(color='#2e7d32', width=1.5, dash='dot'),
             hovertemplate='%{x}<br>발전량기준: %{y:,.0f} MW<extra></extra>'
         ))
         fig.add_trace(go.Scatter(
-            x=daily['날짜'], y=daily['XGB예측(MW)'],
+            x=forecast_hourly['날짜시간'], y=forecast_hourly['XGB예측(MW)'],
             name='XGBoost', line=dict(color='#e65100', width=1, dash='dash'),
             hovertemplate='%{x}<br>XGB: %{y:,.0f} MW<extra></extra>'
         ))
         fig.add_trace(go.Scatter(
-            x=daily['날짜'], y=daily['LGB예측(MW)'],
+            x=forecast_hourly['날짜시간'], y=forecast_hourly['LGB예측(MW)'],
             name='LightGBM', line=dict(color='#ad1457', width=1, dash='dash'),
             hovertemplate='%{x}<br>LGB: %{y:,.0f} MW<extra></extra>'
         ))
