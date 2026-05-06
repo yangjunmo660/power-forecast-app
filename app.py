@@ -437,11 +437,11 @@ if model_loaded:
         else:
             st.markdown(f'<div class="alert-success">✅ <b>정상 운영 중</b> — 수요 안정적 (현재: {current_demand:,.0f} MW | 대응 기준: {threshold_90:,.0f} MW)</div>', unsafe_allow_html=True)
 
-        # 일별 집계
+        # 날짜시간 변환
+        forecast_df['날짜시간'] = pd.to_datetime(forecast_df['날짜시간'])
         forecast_df['날짜'] = forecast_df['날짜시간'].dt.date
         # 1시간 단위로 리샘플링 (5분 단위는 너무 많아서 느림)
         forecast_hourly = forecast_df.copy()
-        forecast_hourly['날짜시간'] = pd.to_datetime(forecast_hourly['날짜시간'])
         numeric_cols = ['앙상블예측(MW)', '발전량기준(MW)', 'XGB예측(MW)', 'LGB예측(MW)']
         forecast_hourly = forecast_hourly.set_index('날짜시간')[numeric_cols].resample('1h').mean().reset_index()
 
