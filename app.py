@@ -289,6 +289,7 @@ with st.sidebar:
     st.markdown("---")
 
     st.markdown("### 📍 기상 관측 지점")
+    st.caption("지역 기상이 전국 전력 수요에 미치는 영향 분석")
     selected_station_name = st.selectbox("지점 선택", list(STATIONS.keys()), index=0)
     selected_station_id   = STATIONS[selected_station_name]
 
@@ -363,7 +364,7 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════
 
 st.markdown("# ⚡ 전력 수요 예측 시스템")
-st.markdown(f"**XGBoost + LightGBM 앙상블 | 2021~2026 학습 데이터 | 기상 지점: {selected_station_name}**")
+st.markdown(f"**XGBoost + LightGBM 앙상블 | 2021~2026 학습 데이터 | 전국 단위 예측**")
 st.markdown(f"🕐 현재 시각: **{(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')}** 기준 실시간 예측")
 st.markdown("---")
 
@@ -378,12 +379,12 @@ except Exception as e:
 if model_loaded:
     with st.spinner("🔄 실시간 예측 중..."):
         forecast_df = run_realtime_forecast(
-            xgb_model, lgb_model, weights, holidays, weather_df, forecast_days, selected_station_name
+            xgb_model, lgb_model, weights, holidays, weather_df, forecast_days, '서울'
         )
 
     if len(forecast_df) == 0:
         st.error("예측 데이터 생성 실패 — 기존 CSV 데이터로 대체합니다.")
-        forecast_df = pd.read_csv(os.path.join(BASE_PATH, f'forecast_30d_{selected_station_name}.csv'), encoding='utf-8-sig')
+        forecast_df = pd.read_csv(os.path.join(BASE_PATH, 'forecast_30d_서울.csv'), encoding='utf-8-sig')
         forecast_df['날짜시간'] = pd.to_datetime(forecast_df['날짜시간'])
         forecast_df = forecast_df.head(forecast_days * 288)
 
@@ -466,7 +467,7 @@ if model_loaded:
             annotation_position="top right"
         )
         fig.update_layout(
-            title=f'전력 수요 실시간 예측 — {forecast_days}일 ({selected_station_name} 기상 기준)',
+            title=f'전국 전력 수요 실시간 예측 — {forecast_days}일',
             xaxis=dict(title='날짜', gridcolor='#e0e8f0'),
             yaxis=dict(title='전력 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f'),
             plot_bgcolor='white', paper_bgcolor='white',
@@ -478,7 +479,8 @@ if model_loaded:
 
         # 기상 데이터 차트
         if weather_df is not None:
-            st.markdown(f"### 🌡️ {selected_station_name} 기상 데이터")
+            st.markdown(f"### 🌡️ {selected_station_name} 기상 데이터 (전국 수요 영향 분석)")
+            st.info(f"💡 **{selected_station_name}** 지역의 기상 데이터를 조회하여 전국 전력 수요에 미치는 영향을 분석합니다. 기온이 높을수록 냉방 수요 증가, 낮을수록 난방 수요 증가로 전국 수요에 영향을 줍니다.")
             col1, col2 = st.columns(2)
             with col1:
                 fig_temp = go.Figure()
