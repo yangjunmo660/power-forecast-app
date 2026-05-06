@@ -270,7 +270,7 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
         df['날짜시간'] = pd.to_datetime(df['날짜시간'])
         df = df.head(forecast_days * 288).copy()
         original_start = df['날짜시간'].min()
-        now = datetime.now().replace(second=0, microsecond=0)
+        now = datetime.utcnow().replace(second=0, microsecond=0) + timedelta(hours=9)  # KST
         now = now - timedelta(minutes=now.minute % 5)
         diff = now - original_start
         df['날짜시간'] = df['날짜시간'] + diff
@@ -363,7 +363,7 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════
 
 st.markdown("# ⚡ 전력 수요 예측 시스템")
-st.markdown(f"**XGBoost + LightGBM 앙상블 | 2021~2025 학습 데이터 | 기상 지점: {selected_station_name}**")
+st.markdown(f"**XGBoost + LightGBM 앙상블 | 2021~2026 학습 데이터 | 기상 지점: {selected_station_name}**")
 st.markdown(f"🕐 현재 시각: **{datetime.now().strftime('%Y-%m-%d %H:%M')}** 기준 실시간 예측")
 st.markdown("---")
 
