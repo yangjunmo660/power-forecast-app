@@ -388,11 +388,11 @@ if model_loaded:
         forecast_df['날짜시간'] = pd.to_datetime(forecast_df['날짜시간'])
         forecast_df = forecast_df.head(forecast_days * 288)
 
-    # 오늘 하루 데이터만 필터링
-    today = (datetime.utcnow() + timedelta(hours=9)).date()
-    today_df = forecast_df[pd.to_datetime(forecast_df['날짜시간']).dt.date == today]
+    # 오늘 하루 데이터만 필터링 (CSV 첫날 기준)
+    first_date = pd.to_datetime(forecast_df['날짜시간']).dt.date.iloc[0]
+    today_df = forecast_df[pd.to_datetime(forecast_df['날짜시간']).dt.date == first_date]
     if len(today_df) == 0:
-        today_df = forecast_df.head(288)  # 오늘 데이터 없으면 첫 하루치
+        today_df = forecast_df.head(288)
 
     avg_demand     = today_df['앙상블예측(MW)'].mean()
     max_demand     = today_df['앙상블예측(MW)'].max()
