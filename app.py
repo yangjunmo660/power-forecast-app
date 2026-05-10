@@ -288,7 +288,12 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
 
 def fetch_realtime_power():
     """한국전력거래소 현재전력수급현황 API"""
+    import xml.etree.ElementTree as ET
+    error_msg = None
     try:
+        if not KPX_API_KEY:
+            error_msg = 'KPX_API_KEY 없음'
+            return None, error_msg
         url = 'https://openapi.kpx.or.kr/openapi/sukub5mMaxDatetime/getSukub5mMaxDatetime'
         params = {
             'serviceKey': KPX_API_KEY,
@@ -296,7 +301,6 @@ def fetch_realtime_power():
             'pageNo': 1,
         }
         res = requests.get(url, params=params, timeout=10)
-        import xml.etree.ElementTree as ET
         root = ET.fromstring(res.text)
         item = root.find('.//item')
         if item is not None:
@@ -307,10 +311,10 @@ def fetch_realtime_power():
                 'suppReservePwr':  float(item.findtext('suppReservePwr', '0')),
                 'suppReserveRate': float(item.findtext('suppReserveRate', '0')),
                 'baseDatetime':    item.findtext('baseDatetime', ''),
-            }
-    except Exception:
-        pass
-    return None
+            }, None
+        return None, f'item 없음: {res.text[:100]}'
+    except Exception as e:
+        return None, str(e)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -435,12 +439,13 @@ if model_loaded:
     threshold_90 = max_demand * (threshold_pct / 100)
 
     # 실시간 전력 API 조회
-    power_now = fetch_realtime_power()
+    power_now, power_err = fetch_realtime_power()
     if power_now and power_now['currPwrTot'] > 0:
         current_demand = power_now['currPwrTot']
         supply_ability = power_now['suppAbility']
         reserve_rate   = power_now['suppReserveRate']
         use_realtime   = True
+        api_debug      = None
     else:
         # API 실패 시 현재 시각 기준 예측값 사용
         now_kst = datetime.utcnow() + timedelta(hours=9)
@@ -450,6 +455,8 @@ if model_loaded:
         supply_ability = max_gen
         reserve_rate   = None
         use_realtime   = False
+        api_debug      = power_err
+        st.warning(f"⚠️ 전력 API 오류: {api_debug}")
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📈 예측 대시보드",
