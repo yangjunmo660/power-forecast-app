@@ -1,0 +1,67 @@
+name: Fetch Power Data
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # 5분마다 실행
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Fetch power data
+        env:
+          KPX_API_KEY: ${{ secrets.KPX_API_KEY }}
+        run: |
+          python - <<'EOF'
+          import requests
+          import xml.etree.ElementTree as ET
+          import json
+          import os
+          from datetime import datetime, timedelta
+
+          API_KEY = os.environ['KPX_API_KEY']
+          url = 'https://openapi.kpx.or.kr/openapi/sukub5mMaxDatetime/getSukub5mMaxDatetime'
+          params = {'serviceKey': API_KEY, 'numOfRows': 1, 'pageNo': 1}
+
+          try:
+              res = requests.get(url, params=params, timeout=15)
+              root = ET.fromstring(res.text)
+              item = root.find('.//item')
+              if item is not None:
+                  data = {
+                      'currPwrTot':      float(item.findtext('currPwrTot', '0')),
+                      'suppAbility':     float(item.findtext('suppAbility', '0')),
+                      'forecastLoad':    float(item.findtext('forecastLoad', '0')),
+                      'suppReservePwr':  float(item.findtext('suppReservePwr', '0')),
+                      'suppReserveRate': float(item.findtext('suppReserveRate', '0')),
+                      'baseDatetime':    item.findtext('baseDatetime', ''),
+                      'updated_at':      datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+                  }
+                  with open('power_realtime.json', 'w') as f:
+                      json.dump(data, f, ensure_ascii=False)
+                  print(f"저장 완료: {data}")
+              else:
+                  print("item 없음")
+          except Exception as e:
+              print(f"오류: {e}")
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'actions@github.com'
+          git add power_realtime.json
+          git diff --staged --quiet || git commit -m "Update power realtime data"
+          git push
