@@ -281,6 +281,37 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
 
 
 # ══════════════════════════════════════════════════════════════
+#  전력거래소 API - 실시간 전력 수급 현황
+# ══════════════════════════════════════════════════════════════
+
+def fetch_realtime_power():
+    """한국전력거래소 현재전력수급현황 API"""
+    try:
+        url = 'https://openapi.kpx.or.kr/openapi/sukub5mMaxDatetime/getSukub5mMaxDatetime'
+        params = {
+            'serviceKey': KPX_API_KEY,
+            'numOfRows': 1,
+            'pageNo': 1,
+        }
+        res = requests.get(url, params=params, timeout=10)
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(res.text)
+        item = root.find('.//item')
+        if item is not None:
+            return {
+                'currPwrTot':      float(item.findtext('currPwrTot', '0')),
+                'suppAbility':     float(item.findtext('suppAbility', '0')),
+                'forecastLoad':    float(item.findtext('forecastLoad', '0')),
+                'suppReservePwr':  float(item.findtext('suppReservePwr', '0')),
+                'suppReserveRate': float(item.findtext('suppReserveRate', '0')),
+                'baseDatetime':    item.findtext('baseDatetime', ''),
+            }
+    except Exception:
+        pass
+    return None
+
+
+# ══════════════════════════════════════════════════════════════
 #  사이드바
 # ══════════════════════════════════════════════════════════════
 
@@ -394,13 +425,29 @@ if model_loaded:
     if len(today_df) == 0:
         today_df = forecast_df.head(288)
 
-    avg_demand     = today_df['앙상블예측(MW)'].mean()
-    max_demand     = today_df['앙상블예측(MW)'].max()
-    min_demand     = today_df['앙상블예측(MW)'].min()
-    avg_gen        = today_df['발전량기준(MW)'].mean()
-    max_gen        = today_df['발전량기준(MW)'].max()
-    current_demand = forecast_df['앙상블예측(MW)'].iloc[0]
-    threshold_90   = max_demand * (threshold_pct / 100)
+    avg_demand  = today_df['앙상블예측(MW)'].mean()
+    max_demand  = today_df['앙상블예측(MW)'].max()
+    min_demand  = today_df['앙상블예측(MW)'].min()
+    avg_gen     = today_df['발전량기준(MW)'].mean()
+    max_gen     = today_df['발전량기준(MW)'].max()
+    threshold_90 = max_demand * (threshold_pct / 100)
+
+    # 실시간 전력 API 조회
+    power_now = fetch_realtime_power()
+    if power_now and power_now['currPwrTot'] > 0:
+        current_demand = power_now['currPwrTot']
+        supply_ability = power_now['suppAbility']
+        reserve_rate   = power_now['suppReserveRate']
+        use_realtime   = True
+    else:
+        # API 실패 시 현재 시각 기준 예측값 사용
+        now_kst = datetime.utcnow() + timedelta(hours=9)
+        forecast_df['날짜시간'] = pd.to_datetime(forecast_df['날짜시간'])
+        idx = (forecast_df['날짜시간'] - now_kst).abs().idxmin()
+        current_demand = forecast_df['앙상블예측(MW)'].iloc[idx]
+        supply_ability = max_gen
+        reserve_rate   = None
+        use_realtime   = False
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📈 예측 대시보드",
@@ -419,13 +466,17 @@ if model_loaded:
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_demand:,.0f}</div><div class="metric-label">오늘 평균 예측 수요 (MW)</div></div>', unsafe_allow_html=True)
+            label1 = "현재 실제 수요 (MW)" if use_realtime else "현재 예측 수요 (MW)"
+            st.markdown(f'<div class="metric-card"><div class="metric-value">{current_demand:,.0f}</div><div class="metric-label">{label1}</div></div>', unsafe_allow_html=True)
         with col2:
             st.markdown(f'<div class="metric-card"><div class="metric-value">{max_demand:,.0f}</div><div class="metric-label">오늘 최대 예측 수요 (MW)</div></div>', unsafe_allow_html=True)
         with col3:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_gen:,.0f}</div><div class="metric-label">오늘 평균 발전량 기준 (MW)</div></div>', unsafe_allow_html=True)
+            if use_realtime and reserve_rate is not None:
+                st.markdown(f'<div class="metric-card"><div class="metric-value">{reserve_rate:.1f}%</div><div class="metric-label">실시간 공급 예비율</div></div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_gen:,.0f}</div><div class="metric-label">오늘 평균 발전량 기준 (MW)</div></div>', unsafe_allow_html=True)
         with col4:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">0.27%</div><div class="metric-label">앙상블 MAPE</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-value">0.32%</div><div class="metric-label">앙상블 MAPE</div></div>', unsafe_allow_html=True)
 
         st.markdown("---")
 
