@@ -287,19 +287,26 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
 # ══════════════════════════════════════════════════════════════
 
 def fetch_realtime_power():
-    """한국전력거래소 현재전력수급현황 API"""
+    """전력 실시간 데이터 - GitHub JSON 파일 또는 직접 API 호출"""
     import xml.etree.ElementTree as ET
-    error_msg = None
+    import json
+
+    # 방법 1: GitHub Actions가 저장한 JSON 파일 읽기
+    json_path = os.path.join(BASE_PATH, 'power_realtime.json') if BASE_PATH != '.' else 'power_realtime.json'
+    try:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        if data and data.get('currPwrTot', 0) > 0:
+            return data, None
+    except Exception:
+        pass
+
+    # 방법 2: 직접 API 호출 (로컬에서만 동작)
     try:
         if not KPX_API_KEY:
-            error_msg = 'KPX_API_KEY 없음'
-            return None, error_msg
+            return None, 'KPX_API_KEY 없음'
         url = 'https://openapi.kpx.or.kr/openapi/sukub5mMaxDatetime/getSukub5mMaxDatetime'
-        params = {
-            'serviceKey': KPX_API_KEY,
-            'numOfRows': 1,
-            'pageNo': 1,
-        }
+        params = {'serviceKey': KPX_API_KEY, 'numOfRows': 1, 'pageNo': 1}
         res = requests.get(url, params=params, timeout=10)
         root = ET.fromstring(res.text)
         item = root.find('.//item')
@@ -312,7 +319,7 @@ def fetch_realtime_power():
                 'suppReserveRate': float(item.findtext('suppReserveRate', '0')),
                 'baseDatetime':    item.findtext('baseDatetime', ''),
             }, None
-        return None, f'item 없음: {res.text[:100]}'
+        return None, f'item 없음'
     except Exception as e:
         return None, str(e)
 
