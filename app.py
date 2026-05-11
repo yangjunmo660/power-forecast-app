@@ -158,11 +158,22 @@ def load_weather_by_station(station_id):
 #  기상청 API
 # ══════════════════════════════════════════════════════════════
 
-def fetch_realtime_weather(station_id):
-    # 현재 시각부터 최대 3시간 전까지 순차적으로 시도
+def fetch_realtime_weather(station_id, station_name='서울'):
+    import json
+
+    # 방법 1: GitHub Actions가 저장한 JSON 파일 읽기
+    try:
+        json_path = 'weather_realtime.json'
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if station_name in data and data[station_name]:
+            return data[station_name]
+    except Exception:
+        pass
+
+    # 방법 2: 직접 API 호출
     for h in range(1, 4):
         try:
-            from datetime import timedelta
             tm = (datetime.utcnow() + timedelta(hours=9) - timedelta(hours=h)).replace(
                 minute=0, second=0, microsecond=0
             ).strftime('%Y%m%d%H%M')
@@ -187,14 +198,12 @@ def fetch_realtime_weather(station_id):
                 def safe(v, default=None):
                     try:
                         f = float(v)
-                        # -9.0, -99.0, -999.0, -9999 모두 결측값 처리
                         if f <= -9.0:
                             return default
                         return f
                     except:
                         return default
 
-                # 컬럼 순서: YYMMDDHHMI(0) STN(1) WD(2) WS(3) ... TA(11) TD(12) HM(13) ... RN(15)
                 result = {
                     'temp': safe(parts[11]),
                     'humi': safe(parts[13]),
@@ -202,7 +211,6 @@ def fetch_realtime_weather(station_id):
                     'rain': safe(parts[15], default=0.0),
                     'time': tm
                 }
-                # 최소 하나라도 유효한 값이 있으면 반환
                 if any(v is not None for k, v in result.items() if k != 'time'):
                     return result
 
@@ -353,7 +361,7 @@ with st.sidebar:
     st.markdown("### 🌡️ 실시간 기상 (API)")
     if st.button("🔄 실시간 기상 조회", use_container_width=True):
         with st.spinner("기상청 API 조회 중..."):
-            weather_now = fetch_realtime_weather(selected_station_id)
+            weather_now = fetch_realtime_weather(selected_station_id, selected_station_name)
         if weather_now and any(v is not None for k, v in weather_now.items() if k != 'time'):
             col_a, col_b = st.columns(2)
             with col_a:
@@ -463,7 +471,6 @@ if model_loaded:
         reserve_rate   = None
         use_realtime   = False
         api_debug      = power_err
-        st.warning(f"⚠️ 전력 API 오류: {api_debug}")
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📈 예측 대시보드",
