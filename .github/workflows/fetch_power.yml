@@ -2,8 +2,10 @@ name: Fetch Power Data
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # 5분마다 실행
-  workflow_dispatch:  # 수동 실행 가능
+    - cron: '*/10 * * * *'  # 10분마다 실행
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   fetch:
@@ -55,8 +57,6 @@ jobs:
                   with open('power_realtime.json', 'w') as f:
                       json.dump(power_data, f, ensure_ascii=False)
                   print(f'전력 저장 완료: {power_data}')
-              else:
-                  print('전력 item 없음')
           except Exception as e:
               print(f'전력 오류: {e}')
 
@@ -92,7 +92,7 @@ jobs:
                               }
                               print(f'{station_name} 저장 완료')
                               break
-                  except Exception as e:
+                  except Exception:
                       continue
 
           with open('weather_realtime.json', 'w', encoding='utf-8') as f:
@@ -105,5 +105,5 @@ jobs:
           git config --global user.name 'github-actions'
           git config --global user.email 'actions@github.com'
           git add power_realtime.json weather_realtime.json
-          git diff --staged --quiet || git commit -m "Update realtime data"
+          git diff --staged --quiet || git commit -m "Update realtime data [skip ci]"
           git push
