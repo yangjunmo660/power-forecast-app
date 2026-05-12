@@ -464,6 +464,10 @@ if model_loaded:
         current_demand = power_now['currPwrTot']
         supply_ability = power_now['suppAbility']
         reserve_rate   = power_now['suppReserveRate']
+        # forecastLoad가 있으면 오늘 최대 예측 부하로 사용
+        if power_now.get('forecastLoad', 0) > 0:
+            max_demand   = power_now['forecastLoad']
+            threshold_90 = max_demand * (threshold_pct / 100)
         use_realtime   = True
         api_debug      = None
     else:
@@ -645,9 +649,12 @@ if model_loaded:
             marker_color='#1565c0', opacity=0.8,
             hovertemplate='%{x}시<br>평균: %{y:,.0f} MW<extra></extra>'
         ))
+        y_min = hourly['앙상블예측(MW)'].min() * 0.97
+        y_max = hourly['앙상블예측(MW)'].max() * 1.02
         fig2.update_layout(
             xaxis=dict(title='시간 (시)', tickmode='linear', gridcolor='#e0e8f0'),
-            yaxis=dict(title='평균 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f'),
+            yaxis=dict(title='평균 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f',
+                      range=[y_min, y_max]),
             plot_bgcolor='white', paper_bgcolor='white',
             font=dict(color='#1a2a4a'), height=350
         )
