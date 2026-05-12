@@ -512,12 +512,48 @@ if model_loaded:
 
         st.markdown("---")
 
+        # session_state 초기화
+        if 'alert_sent' not in st.session_state:
+            st.session_state['alert_sent'] = False
+        if 'standby_called' not in st.session_state:
+            st.session_state['standby_called'] = False
+        if 'emergency_called' not in st.session_state:
+            st.session_state['emergency_called'] = False
+        if 'generator_called' not in st.session_state:
+            st.session_state['generator_called'] = False
+
         # 사양 알림
         if current_demand >= max_gen:
             st.markdown(f'<div class="alert-danger">🚨 <b>비상 수요 관리 발동!</b> 현재 수요({current_demand:,.0f} MW)가 최대 발전량({max_gen:,.0f} MW)을 초과했습니다.</div>', unsafe_allow_html=True)
+            col_a1, col_a2 = st.columns(2)
+            with col_a1:
+                if st.button("📞 비상 담당자 호출", type="primary", use_container_width=True):
+                    st.session_state['emergency_called'] = True
+            with col_a2:
+                if st.button("⚡ 예비 발전기 가동 요청", type="primary", use_container_width=True):
+                    st.session_state['generator_called'] = True
+            if st.session_state['emergency_called']:
+                st.success("✅ 비상 담당자(홍길동 팀장)에게 알림 발송 완료 — 02-1234-5678")
+            if st.session_state['generator_called']:
+                st.success("✅ 예비 발전기 가동 요청 완료 — 한국전력거래소 비상대응팀")
         elif current_demand >= threshold_90:
             st.markdown(f'<div class="alert-warning">⚠️ <b>실시간 수요 대응 시작!</b> 최대 예측 수요의 90% 도달 ({current_demand:,.0f} MW / {threshold_90:,.0f} MW)</div>', unsafe_allow_html=True)
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                if st.button("📞 담당자에게 알림 발송", use_container_width=True):
+                    st.session_state['alert_sent'] = True
+            with col_b2:
+                if st.button("⚡ 예비 발전기 대기 요청", use_container_width=True):
+                    st.session_state['standby_called'] = True
+            if st.session_state['alert_sent']:
+                st.success("✅ 수요 대응 담당자(김철수 과장)에게 알림 발송 완료 — 02-9876-5432")
+            if st.session_state['standby_called']:
+                st.success("✅ 예비 발전기 대기 요청 완료 — 한국전력거래소 수요관리팀")
         else:
+            st.session_state['alert_sent'] = False
+            st.session_state['standby_called'] = False
+            st.session_state['emergency_called'] = False
+            st.session_state['generator_called'] = False
             st.markdown(f'<div class="alert-success">✅ <b>정상 운영 중</b> — 수요 안정적 (현재: {current_demand:,.0f} MW | 대응 기준: {threshold_90:,.0f} MW)</div>', unsafe_allow_html=True)
 
         # 날짜시간 변환
