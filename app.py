@@ -357,41 +357,46 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 실시간 기상 조회
+    # 실시간 기상 조회 - session_state로 깜빡임 제거
     st.markdown("### 🌡️ 실시간 기상 (API)")
+    if 'weather_now' not in st.session_state:
+        st.session_state.weather_now = None
+
     if st.button("🔄 실시간 기상 조회", use_container_width=True):
         with st.spinner("기상청 API 조회 중..."):
-            weather_now = fetch_realtime_weather(selected_station_id, selected_station_name)
-        if weather_now and any(v is not None for k, v in weather_now.items() if k != 'time'):
-            col_a, col_b = st.columns(2)
-            with col_a:
-                temp_val = f"{weather_now['temp']}°C" if weather_now['temp'] is not None else '-'
-                wind_val = f"{weather_now['wind']} m/s" if weather_now['wind'] is not None else '-'
-                st.markdown(f"""
-                <div class="weather-card">
-                    <div class="weather-value">{temp_val}</div>
-                    <div class="weather-label">기온</div>
-                </div>
-                <div class="weather-card">
-                    <div class="weather-value">{wind_val}</div>
-                    <div class="weather-label">풍속</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with col_b:
-                humi_val = f"{weather_now['humi']}%" if weather_now['humi'] is not None else '-'
-                rain_val = f"{weather_now['rain']} mm" if weather_now['rain'] is not None else '0 mm'
-                st.markdown(f"""
-                <div class="weather-card">
-                    <div class="weather-value">{humi_val}</div>
-                    <div class="weather-label">습도</div>
-                </div>
-                <div class="weather-card">
-                    <div class="weather-value">{rain_val}</div>
-                    <div class="weather-label">강수량</div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.warning("기상 데이터 조회 실패 — 잠시 후 다시 시도해주세요.")
+            st.session_state.weather_now = fetch_realtime_weather(selected_station_id, selected_station_name)
+
+    weather_now = st.session_state.weather_now
+    if weather_now and any(v is not None for k, v in weather_now.items() if k != 'time'):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            temp_val = f"{weather_now['temp']}°C" if weather_now['temp'] is not None else '-'
+            wind_val = f"{weather_now['wind']} m/s" if weather_now['wind'] is not None else '-'
+            st.markdown(f"""
+            <div class="weather-card">
+                <div class="weather-value">{temp_val}</div>
+                <div class="weather-label">기온</div>
+            </div>
+            <div class="weather-card">
+                <div class="weather-value">{wind_val}</div>
+                <div class="weather-label">풍속</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col_b:
+            humi_val = f"{weather_now['humi']}%" if weather_now['humi'] is not None else '-'
+            rain_val = f"{weather_now['rain']} mm" if weather_now['rain'] is not None else '0 mm'
+            st.markdown(f"""
+            <div class="weather-card">
+                <div class="weather-value">{humi_val}</div>
+                <div class="weather-label">습도</div>
+            </div>
+            <div class="weather-card">
+                <div class="weather-value">{rain_val}</div>
+                <div class="weather-label">강수량</div>
+            </div>
+            """, unsafe_allow_html=True)
+    elif weather_now is not None:
+        st.warning("기상 데이터 조회 실패 — 잠시 후 다시 시도해주세요.")
 
     st.markdown("---")
     st.markdown("### 📊 시스템 사양")
