@@ -573,7 +573,7 @@ if model_loaded:
         st.markdown(f"### 🌡️ {selected_station_name} 기상 데이터 (전국 수요 영향 분석)")
 
         # 실시간 기상값 기반 동적 설명
-        weather_now = fetch_realtime_weather(selected_station_id)
+        weather_now = st.session_state.get("weather_now") or fetch_realtime_weather(selected_station_id, selected_station_name)
         if weather_now and weather_now.get('temp') is not None:
             temp = weather_now['temp']
             humi = weather_now['humi'] if weather_now.get('humi') else 0
