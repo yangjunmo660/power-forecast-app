@@ -2,7 +2,8 @@ name: Fetch Power Data
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # 10분마다 실행
+    - cron: '*/5 * * * *'   # 5분마다 기상/전력 데이터 수집
+    - cron: '0 15 * * *'    # 매일 한국 시간 자정(UTC 15시)에 CSV 날짜 업데이트
   push:
     branches: [main]
   workflow_dispatch:
@@ -22,7 +23,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests pandas
 
       - name: Fetch power and weather data
         env:
@@ -100,10 +101,44 @@ jobs:
           print(f'기상 저장 완료: {list(weather_data.keys())}')
           PYEOF
 
+      - name: Update CSV dates (daily at midnight KST)
+        run: |
+          python - <<'PYEOF'
+          import pandas as pd
+          from datetime import datetime, timedelta
+          import os
+
+          stations = ['서울', '부산', '대구', '광주', '대전']
+          now = datetime.utcnow() + timedelta(hours=9)
+          now = now.replace(second=0, microsecond=0)
+          now = now - timedelta(minutes=now.minute % 5)
+
+          updated = False
+          for station in stations:
+              csv_path = f'forecast_30d_{station}.csv'
+              if not os.path.exists(csv_path):
+                  print(f'{station} CSV 없음')
+                  continue
+              df = pd.read_csv(csv_path, encoding='utf-8-sig')
+              df['날짜시간'] = pd.to_datetime(df['날짜시간'])
+              first_date = df['날짜시간'].dt.date.iloc[0]
+              today = now.date()
+              # 날짜가 오늘과 다르면 업데이트
+              if first_date != today:
+                  future_ds = pd.date_range(now, periods=len(df), freq='5min')
+                  df['날짜시간'] = future_ds
+                  df['발전량기준(MW)'] = (df['앙상블예측(MW)'] * 1.149).round(1)
+                  df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+                  print(f'{station} CSV 날짜 업데이트 완료')
+                  updated = True
+              else:
+                  print(f'{station} CSV 이미 최신')
+          PYEOF
+
       - name: Commit and push
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'actions@github.com'
-          git add power_realtime.json weather_realtime.json
+          git add power_realtime.json weather_realtime.json forecast_30d_*.csv
           git diff --staged --quiet || git commit -m "Update realtime data [skip ci]"
           git push
