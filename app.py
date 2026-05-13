@@ -160,19 +160,7 @@ def load_weather_by_station(station_id):
 # ══════════════════════════════════════════════════════════════
 
 def fetch_realtime_weather(station_id, station_name='서울'):
-    import json
-
-    # 방법 1: GitHub Actions가 저장한 JSON 파일 읽기
-    try:
-        json_path = 'weather_realtime.json'
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        if station_name in data and data[station_name]:
-            return data[station_name]
-    except Exception:
-        pass
-
-    # 방법 2: 직접 API 호출
+    # 직접 기상청 API 호출
     for h in range(1, 4):
         try:
             tm = (datetime.utcnow() + timedelta(hours=9) - timedelta(hours=h)).replace(
@@ -358,16 +346,9 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 실시간 기상 조회 - session_state로 깜빡임 제거
-    st.markdown("### 🌡️ 실시간 기상 (API)")
-    if 'weather_now' not in st.session_state:
-        st.session_state.weather_now = None
-
-    if st.button("🔄 실시간 기상 조회", use_container_width=True):
-        with st.spinner("기상청 API 조회 중..."):
-            st.session_state.weather_now = fetch_realtime_weather(selected_station_id, selected_station_name)
-
-    weather_now = st.session_state.weather_now
+    # 실시간 기상 자동 조회
+    st.markdown("### 🌡️ 실시간 기상")
+    weather_now = fetch_realtime_weather(selected_station_id, selected_station_name)
     if weather_now and any(v is not None for k, v in weather_now.items() if k != 'time'):
         col_a, col_b = st.columns(2)
         with col_a:
@@ -396,7 +377,7 @@ with st.sidebar:
                 <div class="weather-label">강수량</div>
             </div>
             """, unsafe_allow_html=True)
-    elif weather_now is not None:
+    else:
         st.warning("기상 데이터 조회 실패 — 잠시 후 다시 시도해주세요.")
 
     st.markdown("---")
