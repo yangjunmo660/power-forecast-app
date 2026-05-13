@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 import numpy as np
 import joblib
 import plotly.graph_objects as go
@@ -414,6 +415,12 @@ with st.sidebar:
     - 전력 데이터: 550,945건
     - 공휴일: 137일
     """)
+
+    st.markdown("---")
+    st.markdown("### 🔄 자동 새로고침")
+    auto_refresh = st.toggle("5분마다 자동 갱신", value=True)
+    if auto_refresh:
+        st.caption("기상 데이터 자동 갱신 중...")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -951,3 +958,8 @@ if model_loaded:
         if st.button("대화 초기화", type="secondary"):
             st.session_state.chat_history = []
             st.rerun()
+
+# 자동 새로고침 (5분마다)
+if 'auto_refresh' in dir() and auto_refresh:
+    time.sleep(300)
+    st.rerun()
