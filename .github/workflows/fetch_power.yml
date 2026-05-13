@@ -141,4 +141,5 @@ jobs:
           git config --global user.email 'actions@github.com'
           git add power_realtime.json weather_realtime.json forecast_30d_*.csv
           git diff --staged --quiet || git commit -m "Update realtime data [skip ci]"
+          git pull --rebase origin main
           git push
