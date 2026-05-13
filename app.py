@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import time
 import numpy as np
 import joblib
 import plotly.graph_objects as go
@@ -160,7 +159,19 @@ def load_weather_by_station(station_id):
 # ══════════════════════════════════════════════════════════════
 
 def fetch_realtime_weather(station_id, station_name='서울'):
-    # 직접 기상청 API 호출
+    import json
+
+    # 방법 1: GitHub Actions가 저장한 JSON 파일 읽기
+    try:
+        json_path = 'weather_realtime.json'
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if station_name in data and data[station_name]:
+            return data[station_name]
+    except Exception:
+        pass
+
+    # 방법 2: 직접 API 호출
     for h in range(1, 4):
         try:
             tm = (datetime.utcnow() + timedelta(hours=9) - timedelta(hours=h)).replace(
@@ -346,7 +357,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 실시간 기상 조회
+    # 실시간 기상 조회 - session_state로 깜빡임 제거
     st.markdown("### 🌡️ 실시간 기상 (API)")
     if 'weather_now' not in st.session_state:
         st.session_state.weather_now = None
@@ -403,12 +414,6 @@ with st.sidebar:
     - 전력 데이터: 550,945건
     - 공휴일: 137일
     """)
-
-    st.markdown("---")
-    st.markdown("### 🔄 자동 새로고침")
-    auto_refresh = st.toggle("5분마다 자동 갱신", value=True)
-    if auto_refresh:
-        st.caption("기상 데이터 자동 갱신 중...")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -946,8 +951,3 @@ if model_loaded:
         if st.button("대화 초기화", type="secondary"):
             st.session_state.chat_history = []
             st.rerun()
-
-# 자동 새로고침 (5분마다)
-if 'auto_refresh' in dir() and auto_refresh:
-    time.sleep(300)
-    st.rerun()
