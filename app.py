@@ -346,9 +346,16 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 실시간 기상 자동 조회
-    st.markdown("### 🌡️ 실시간 기상")
-    weather_now = fetch_realtime_weather(selected_station_id, selected_station_name)
+    # 실시간 기상 조회
+    st.markdown("### 🌡️ 실시간 기상 (API)")
+    if 'weather_now' not in st.session_state:
+        st.session_state.weather_now = None
+
+    if st.button("🔄 실시간 기상 조회", use_container_width=True):
+        with st.spinner("기상청 API 조회 중..."):
+            st.session_state.weather_now = fetch_realtime_weather(selected_station_id, selected_station_name)
+
+    weather_now = st.session_state.weather_now
     if weather_now and any(v is not None for k, v in weather_now.items() if k != 'time'):
         col_a, col_b = st.columns(2)
         with col_a:
@@ -377,7 +384,7 @@ with st.sidebar:
                 <div class="weather-label">강수량</div>
             </div>
             """, unsafe_allow_html=True)
-    else:
+    elif weather_now is not None:
         st.warning("기상 데이터 조회 실패 — 잠시 후 다시 시도해주세요.")
 
     st.markdown("---")
