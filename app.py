@@ -498,10 +498,10 @@ if model_loaded:
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            label1 = "현재 실제 수요 (MW)" if use_realtime else "현재 예측 수요 (MW)"
+            label1 = "현재 실제 수요 (MW)" if use_realtime else "현재 실제 수요 (MW)"
             st.markdown(f'<div class="metric-card"><div class="metric-value">{current_demand:,.0f}</div><div class="metric-label">{label1}</div></div>', unsafe_allow_html=True)
         with col2:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{max_demand:,.0f}</div><div class="metric-label">오늘 최대 예측 수요 (MW)</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-value">{max_demand:,.0f}</div><div class="metric-label">오늘 최대 실제 수요 (MW)</div></div>', unsafe_allow_html=True)
         with col3:
             if use_realtime and reserve_rate is not None:
                 st.markdown(f'<div class="metric-card"><div class="metric-value">{reserve_rate:.1f}%</div><div class="metric-label">실시간 공급 예비율</div></div>', unsafe_allow_html=True)
