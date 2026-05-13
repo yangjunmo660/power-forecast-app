@@ -89,7 +89,7 @@ jobs:
                                   'humi': safe(parts[13]),
                                   'wind': safe(parts[3]),
                                   'rain': 0.0,
-                                  'time': tm
+                                  'time': (datetime.utcnow() + timedelta(hours=9)).strftime('%Y%m%d%H%M')
                               }
                               print(f'{station_name} 저장 완료')
                               break
