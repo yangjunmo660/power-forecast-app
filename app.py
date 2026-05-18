@@ -56,8 +56,15 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
     * { font-family: 'Noto Sans KR', sans-serif; }
     /* 리렌더링 시 흐려지는 효과 제거 */
-    .stApp { opacity: 1 !important; transition: none !important; }
-    [data-testid="stAppViewContainer"] { opacity: 1 !important; }
+    .stApp, .stApp *,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewBlockContainer"],
+    [data-testid="block-container"],
+    .main, .main * {
+        opacity: 1 !important;
+        transition: none !important;
+        animation: none !important;
+    }
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
         border: 1px solid #d0e4f7; border-radius: 12px;
