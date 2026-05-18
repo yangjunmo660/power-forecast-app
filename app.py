@@ -55,6 +55,9 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
     * { font-family: 'Noto Sans KR', sans-serif; }
+    /* 리렌더링 시 흐려지는 효과 제거 */
+    .stApp { opacity: 1 !important; transition: none !important; }
+    [data-testid="stAppViewContainer"] { opacity: 1 !important; }
     .metric-card {
         background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);
         border: 1px solid #d0e4f7; border-radius: 12px;
@@ -775,10 +778,10 @@ if model_loaded:
             - 예측 기간: {forecast_days}일
             - 기상 지점: {selected_station_name}
             - 예측 기준 시각: {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')}
-            - 평균 예측 수요: {avg_demand:,.0f} MW
-            - 최대 예측 수요: {max_demand:,.0f} MW
-            - 최소 예측 수요: {min_demand:,.0f} MW
-            - 평균 발전량 기준 (×1.149): {avg_gen:,.0f} MW
+            - 평균 예측 수요 (오늘 하루 기준): {avg_demand:,.0f} MW
+            - 최대 예측 수요 (오늘 하루 기준): {max_demand:,.0f} MW
+            - 최소 예측 수요 (오늘 하루 기준): {min_demand:,.0f} MW
+            - 평균 발전량 기준 (×1.149, 오늘 하루 기준): {avg_gen:,.0f} MW
             - 앙상블 가중치: XGB {weights[0]:.3f}, LGB {weights[1]:.3f}
             - 수요 대응 기준: 최대 수요의 {threshold_pct}% = {threshold_90:,.0f} MW
             위 정보를 바탕으로 친절하고 전문적으로 한국어로 답변해주세요.
