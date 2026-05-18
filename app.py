@@ -707,8 +707,8 @@ if model_loaded:
         with subtab_lgb:
             st.markdown("#### LightGBM 상위 20개 특성 중요도")
             try:
-                lgb_feat_names = lgb_model.feature_name()
-                lgb_importance = lgb_model.feature_importance(importance_type='gain')
+                lgb_feat_names = lgb_model.booster_.feature_name()
+                lgb_importance = lgb_model.booster_.feature_importance(importance_type='gain')
                 lgb_imp_df = pd.DataFrame({
                     '특성': lgb_feat_names,
                     '중요도': lgb_importance
