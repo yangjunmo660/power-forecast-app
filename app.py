@@ -1,16 +1,15 @@
 import streamlit as st
 import pandas as pd
+import time
 import numpy as np
 import joblib
 import plotly.graph_objects as go
 import requests
 import os
 from datetime import datetime, timedelta
-
 # ══════════════════════════════════════════════════════════════
 #  설정
 # ══════════════════════════════════════════════════════════════
-
 BASE_PATH = r'C:\Users\rokaf' if os.path.exists(r'C:\Users\rokaf\xgb_model.pkl') else '.'
 # API 키 - Streamlit Secrets 또는 로컬 secrets.toml에서 불러오기
 try:
@@ -22,7 +21,6 @@ except:
     KMA_API_KEY    = ''
     KPX_API_KEY    = ''
 GEMINI_URL = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}'
-
 STATIONS = {
     '서울': 108,
     '부산': 159,
@@ -30,7 +28,6 @@ STATIONS = {
     '광주': 156,
     '대전': 133,
 }
-
 WEATHER_FILES = [
     os.path.join(BASE_PATH, 'OBS_ASOS_TIM_20260428124033.csv'),
     os.path.join(BASE_PATH, 'OBS_ASOS_TIM_20260428124624.csv'),
@@ -38,7 +35,6 @@ WEATHER_FILES = [
     os.path.join(BASE_PATH, 'OBS_ASOS_TIM_20260428125905.csv'),
     os.path.join(BASE_PATH, 'OBS_ASOS_TIM_20260428131304.csv'),
 ]
-
 FEAT_COLS = [
     'hour', 'minute', 'dayofweek', 'month', 'day', 'quarter',
     'is_weekend', 'is_holiday', 'is_off',
@@ -49,18 +45,12 @@ FEAT_COLS = [
     'roll_288_mean', 'roll_288_std', 'roll_288_max', 'roll_288_min',
     'temp', 'humi', 'wind', 'rain', 'temp_sq', 'heat_index', 'feels_like'
 ]
-
 st.set_page_config(
     page_title="전력 수요 예측 시스템",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ══════════════════════════════════════════════════════════════
-#  CSS
-# ══════════════════════════════════════════════════════════════
-
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
@@ -108,12 +98,6 @@ st.markdown("""
     h1, h2, h3 { color: #1a2a4a; }
 </style>
 """, unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════════
-#  모델 로드
-# ══════════════════════════════════════════════════════════════
-
 @st.cache_resource
 def load_models():
     xgb_model = joblib.load(os.path.join(BASE_PATH, 'xgb_model.pkl'))
@@ -121,8 +105,6 @@ def load_models():
     weights   = joblib.load(os.path.join(BASE_PATH, 'ensemble_weights.pkl'))
     holidays  = joblib.load(os.path.join(BASE_PATH, 'holidays.pkl'))
     return xgb_model, lgb_model, weights, holidays
-
-
 @st.cache_data
 def load_weather_by_station(station_id):
     dfs = []
@@ -152,32 +134,27 @@ def load_weather_by_station(station_id):
         weather = weather[['ds', 'temp', 'humi', 'wind', 'rain']].dropna(subset=['ds'])
     weather = weather.sort_values('ds').drop_duplicates('ds').reset_index(drop=True)
     return weather
-
-
-# ══════════════════════════════════════════════════════════════
-#  기상청 API
-# ══════════════════════════════════════════════════════════════
-
 def fetch_realtime_weather(station_id, station_name='서울'):
     import json
-
     # 방법 1: GitHub Actions가 저장한 JSON 파일 읽기
     try:
-        json_path = 'weather_realtime.json'
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        if station_name in data and data[station_name]:
-            return data[station_name]
+        for json_path in ['weather_realtime.json',
+                          os.path.join(os.path.dirname(os.path.abspath(__file__)), 'weather_realtime.json'),
+                          '/mount/src/power-forecast-app/weather_realtime.json']:
+            if os.path.exists(json_path):
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if station_name in data and data[station_name]:
+                    return data[station_name]
+                break
     except Exception:
         pass
-
     # 방법 2: 직접 API 호출
     for h in range(1, 4):
         try:
             tm = (datetime.utcnow() + timedelta(hours=9) - timedelta(hours=h)).replace(
                 minute=0, second=0, microsecond=0
             ).strftime('%Y%m%d%H%M')
-
             url = 'https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php'
             params = {
                 'tm':      tm,
@@ -187,14 +164,12 @@ def fetch_realtime_weather(station_id, station_name='서울'):
             }
             res   = requests.get(url, params=params, timeout=10)
             lines = res.text.strip().split('\n')
-
             for line in lines:
                 if line.startswith('#') or not line.strip():
                     continue
                 parts = line.split()
                 if len(parts) < 14:
                     continue
-
                 def safe(v, default=None):
                     try:
                         f = float(v)
@@ -203,7 +178,6 @@ def fetch_realtime_weather(station_id, station_name='서울'):
                         return f
                     except:
                         return default
-
                 result = {
                     'temp': safe(parts[11]),
                     'humi': safe(parts[13]),
@@ -213,16 +187,9 @@ def fetch_realtime_weather(station_id, station_name='서울'):
                 }
                 if any(v is not None for k, v in result.items() if k != 'time'):
                     return result
-
         except Exception:
             continue
     return None
-
-
-# ══════════════════════════════════════════════════════════════
-#  피처 생성
-# ══════════════════════════════════════════════════════════════
-
 def make_features(df, holidays, weather_df=None):
     d = df.copy()
     d['hour']       = d['ds'].dt.hour
@@ -267,12 +234,6 @@ def make_features(df, holidays, weather_df=None):
     d['heat_index'] = d['temp'] * d['humi'] / 100
     d['feels_like'] = d['temp'] - 0.4 * (d['temp'] - 10) * (1 - d['humi'] / 100)
     return d
-
-
-# ══════════════════════════════════════════════════════════════
-#  실시간 예측
-# ══════════════════════════════════════════════════════════════
-
 def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, forecast_days, station_name='서울'):
     try:
         csv_path = os.path.join(BASE_PATH, f'forecast_30d_{station_name}.csv')
@@ -280,7 +241,7 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
         df['날짜시간'] = pd.to_datetime(df['날짜시간'])
         df = df.head(forecast_days * 288).copy()
         original_start = df['날짜시간'].min()
-        now = datetime.utcnow().replace(second=0, microsecond=0) + timedelta(hours=9)  # KST
+        now = datetime.utcnow().replace(second=0, microsecond=0) + timedelta(hours=9)
         now = now - timedelta(minutes=now.minute % 5)
         diff = now - original_start
         df['날짜시간'] = df['날짜시간'] + diff
@@ -288,18 +249,9 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
         return df
     except Exception as e:
         return pd.DataFrame()
-
-
-# ══════════════════════════════════════════════════════════════
-#  전력거래소 API - 실시간 전력 수급 현황
-# ══════════════════════════════════════════════════════════════
-
 def fetch_realtime_power():
-    """전력 실시간 데이터 - GitHub JSON 파일 또는 직접 API 호출"""
     import xml.etree.ElementTree as ET
     import json
-
-    # 방법 1: GitHub Actions가 저장한 JSON 파일 읽기
     json_path = os.path.join(BASE_PATH, 'power_realtime.json') if BASE_PATH != '.' else 'power_realtime.json'
     try:
         with open(json_path, 'r') as f:
@@ -308,8 +260,6 @@ def fetch_realtime_power():
             return data, None
     except Exception:
         pass
-
-    # 방법 2: 직접 API 호출 (로컬에서만 동작)
     try:
         if not KPX_API_KEY:
             return None, 'KPX_API_KEY 없음'
@@ -327,45 +277,32 @@ def fetch_realtime_power():
                 'suppReserveRate': float(item.findtext('suppReserveRate', '0')),
                 'baseDatetime':    item.findtext('baseDatetime', ''),
             }, None
-        return None, f'item 없음'
+        return None, 'item 없음'
     except Exception as e:
         return None, str(e)
-
-
 # ══════════════════════════════════════════════════════════════
 #  사이드바
 # ══════════════════════════════════════════════════════════════
-
 with st.sidebar:
     st.markdown("## ⚡ 전력 수요 예측")
     st.markdown("---")
-
     st.markdown("### 📍 기상 관측 지점")
     st.caption("지역 기상이 전국 전력 수요에 미치는 영향 분석")
     selected_station_name = st.selectbox("지점 선택", list(STATIONS.keys()), index=0)
     selected_station_id   = STATIONS[selected_station_name]
-
     st.markdown("---")
-
     forecast_days = st.selectbox("예측 기간", [7, 14, 30], index=2, format_func=lambda x: f"{x}일")
-
     st.markdown("---")
-
     st.markdown("### ⚠️ 수요 대응 임계값")
     threshold_pct = st.slider("임계값 (%)", min_value=50, max_value=100, value=90, step=1,
                               help="예측 수요가 최대값의 몇 % 이상일 때 경고를 표시할지 설정")
-
     st.markdown("---")
-
-    # 실시간 기상 조회 - session_state로 깜빡임 제거
     st.markdown("### 🌡️ 실시간 기상 (API)")
     if 'weather_now' not in st.session_state:
         st.session_state.weather_now = None
-
     if st.button("🔄 실시간 기상 조회", use_container_width=True):
         with st.spinner("기상청 API 조회 중..."):
             st.session_state.weather_now = fetch_realtime_weather(selected_station_id, selected_station_name)
-
     weather_now = st.session_state.weather_now
     if weather_now and any(v is not None for k, v in weather_now.items() if k != 'time'):
         col_a, col_b = st.columns(2)
@@ -397,7 +334,9 @@ with st.sidebar:
             """, unsafe_allow_html=True)
     elif weather_now is not None:
         st.warning("기상 데이터 조회 실패 — 잠시 후 다시 시도해주세요.")
-
+    st.markdown("---")
+    st.markdown("### 🔄 자동 새로고침")
+    auto_refresh = st.toggle("5분마다 자동 갱신", value=False)
     st.markdown("---")
     st.markdown("### 📊 시스템 사양")
     st.markdown("""
@@ -406,7 +345,6 @@ with st.sidebar:
     - **수요 90% 대응** ✅
     - **비상 수요 관리** ✅
     """)
-
     st.markdown("---")
     st.markdown("### 📁 학습 데이터")
     st.markdown("""
@@ -414,17 +352,13 @@ with st.sidebar:
     - 전력 데이터: 550,945건
     - 공휴일: 137일
     """)
-
-
 # ══════════════════════════════════════════════════════════════
 #  메인
 # ══════════════════════════════════════════════════════════════
-
 st.markdown("# ⚡ 전력 수요 예측 시스템")
 st.markdown(f"**XGBoost + LightGBM 앙상블 | 2021~2026 학습 데이터 | 전국 단위 예측**")
 st.markdown(f"🕐 현재 시각: **{(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')}** 기준 실시간 예측")
 st.markdown("---")
-
 try:
     xgb_model, lgb_model, weights, holidays = load_models()
     weather_df   = load_weather_by_station(selected_station_id)
@@ -432,46 +366,36 @@ try:
 except Exception as e:
     st.error(f"모델 로드 실패: {e}")
     model_loaded = False
-
 if model_loaded:
     with st.spinner("🔄 실시간 예측 중..."):
         forecast_df = run_realtime_forecast(
             xgb_model, lgb_model, weights, holidays, weather_df, forecast_days, '서울'
         )
-
     if len(forecast_df) == 0:
         st.error("예측 데이터 생성 실패 — 기존 CSV 데이터로 대체합니다.")
         forecast_df = pd.read_csv(os.path.join(BASE_PATH, 'forecast_30d_서울.csv'), encoding='utf-8-sig')
         forecast_df['날짜시간'] = pd.to_datetime(forecast_df['날짜시간'])
         forecast_df = forecast_df.head(forecast_days * 288)
-
-    # 오늘 하루 데이터만 필터링 (CSV 첫날 기준)
     first_date = pd.to_datetime(forecast_df['날짜시간']).dt.date.iloc[0]
     today_df = forecast_df[pd.to_datetime(forecast_df['날짜시간']).dt.date == first_date]
     if len(today_df) == 0:
         today_df = forecast_df.head(288)
-
     avg_demand  = today_df['앙상블예측(MW)'].mean()
     max_demand  = today_df['앙상블예측(MW)'].max()
     min_demand  = today_df['앙상블예측(MW)'].min()
     avg_gen     = today_df['발전량기준(MW)'].mean()
     max_gen     = today_df['발전량기준(MW)'].max()
     threshold_90 = max_demand * (threshold_pct / 100)
-
-    # 실시간 전력 API 조회
     power_now, power_err = fetch_realtime_power()
     if power_now and power_now['currPwrTot'] > 0:
         current_demand = power_now['currPwrTot']
         supply_ability = power_now['suppAbility']
         reserve_rate   = power_now['suppReserveRate']
-        # forecastLoad가 있으면 오늘 최대 예측 부하로 사용
         if power_now.get('forecastLoad', 0) > 0:
             max_demand   = power_now['forecastLoad']
             threshold_90 = max_demand * (threshold_pct / 100)
         use_realtime   = True
-        api_debug      = None
     else:
-        # API 실패 시 현재 시각 기준 예측값 사용
         now_kst = datetime.utcnow() + timedelta(hours=9)
         forecast_df['날짜시간'] = pd.to_datetime(forecast_df['날짜시간'])
         idx = (forecast_df['날짜시간'] - now_kst).abs().idxmin()
@@ -479,8 +403,6 @@ if model_loaded:
         supply_ability = max_gen
         reserve_rate   = None
         use_realtime   = False
-        api_debug      = power_err
-
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📈 예측 대시보드",
         "📊 모델 성능 비교",
@@ -488,31 +410,22 @@ if model_loaded:
         "📥 리포트/다운로드",
         "🤖 AI 챗봇"
     ])
-
-    # ──────────────────────────────────────────────────────────
-    #  Tab 1: 예측 대시보드
-    # ──────────────────────────────────────────────────────────
-
     with tab1:
         st.markdown("### 📈 전력 수요 예측 대시보드")
-
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            label1 = "현재 실제 수요 (MW)" if use_realtime else "현재 실제 수요 (MW)"
+            label1 = "현재 실제 수요 (MW)" if use_realtime else "현재 수요 (MW)"
             st.markdown(f'<div class="metric-card"><div class="metric-value">{current_demand:,.0f}</div><div class="metric-label">{label1}</div></div>', unsafe_allow_html=True)
         with col2:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{max_demand:,.0f}</div><div class="metric-label">오늘 최대 실제 수요 (MW)</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-value">{max_demand:,.0f}</div><div class="metric-label">오늘 최대 수요 (MW)</div></div>', unsafe_allow_html=True)
         with col3:
             if use_realtime and reserve_rate is not None:
                 st.markdown(f'<div class="metric-card"><div class="metric-value">{reserve_rate:.1f}%</div><div class="metric-label">실시간 공급 예비율</div></div>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_gen:,.0f}</div><div class="metric-label">오늘 평균 발전량 기준 (MW)</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_gen:,.0f}</div><div class="metric-label">오늘 평균 발전량 (MW)</div></div>', unsafe_allow_html=True)
         with col4:
             st.markdown(f'<div class="metric-card"><div class="metric-value">0.32%</div><div class="metric-label">앙상블 MAPE</div></div>', unsafe_allow_html=True)
-
         st.markdown("---")
-
-        # session_state 초기화
         if 'alert_sent' not in st.session_state:
             st.session_state['alert_sent'] = False
         if 'standby_called' not in st.session_state:
@@ -521,8 +434,6 @@ if model_loaded:
             st.session_state['emergency_called'] = False
         if 'generator_called' not in st.session_state:
             st.session_state['generator_called'] = False
-
-        # 사양 알림
         if current_demand >= max_gen:
             st.markdown(f'<div class="alert-danger">🚨 <b>비상 수요 관리 발동!</b> 현재 수요({current_demand:,.0f} MW)가 최대 발전량({max_gen:,.0f} MW)을 초과했습니다.</div>', unsafe_allow_html=True)
             col_a1, col_a2 = st.columns(2)
@@ -537,7 +448,7 @@ if model_loaded:
             if st.session_state['generator_called']:
                 st.success("✅ 예비 발전기 가동 요청 완료 — 한국전력거래소 비상대응팀")
         elif current_demand >= threshold_90:
-            st.markdown(f'<div class="alert-warning">⚠️ <b>실시간 수요 대응 시작!</b> 최대 예측 수요의 90% 도달 ({current_demand:,.0f} MW / {threshold_90:,.0f} MW)</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="alert-warning">⚠️ <b>실시간 수요 대응 시작!</b> 최대 수요의 {threshold_pct}% 도달 ({current_demand:,.0f} MW / {threshold_90:,.0f} MW)</div>', unsafe_allow_html=True)
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 if st.button("📞 담당자에게 알림 발송", use_container_width=True):
@@ -555,23 +466,17 @@ if model_loaded:
             st.session_state['emergency_called'] = False
             st.session_state['generator_called'] = False
             st.markdown(f'<div class="alert-success">✅ <b>정상 운영 중</b> — 수요 안정적 (현재: {current_demand:,.0f} MW | 대응 기준: {threshold_90:,.0f} MW)</div>', unsafe_allow_html=True)
-
-        # 날짜시간 변환
         forecast_df['날짜시간'] = pd.to_datetime(forecast_df['날짜시간'])
         forecast_df['날짜'] = forecast_df['날짜시간'].dt.date
-        # 1시간 단위로 리샘플링 (5분 단위는 너무 많아서 느림)
         forecast_hourly = forecast_df.copy()
         numeric_cols = ['앙상블예측(MW)', '발전량기준(MW)', 'XGB예측(MW)', 'LGB예측(MW)']
         forecast_hourly = forecast_hourly.set_index('날짜시간')[numeric_cols].resample('1h').mean().reset_index()
-
-        # 일별 집계 (다운로드용)
         daily = forecast_df.groupby('날짜').agg({
             '앙상블예측(MW)': 'mean',
             '발전량기준(MW)': 'mean',
             'XGB예측(MW)':   'mean',
             'LGB예측(MW)':   'mean',
         }).reset_index()
-
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=forecast_hourly['날짜시간'], y=forecast_hourly['앙상블예측(MW)'],
@@ -595,7 +500,7 @@ if model_loaded:
         ))
         fig.add_hline(
             y=threshold_90, line_dash="dot", line_color="#ff6b35",
-            annotation_text=f"수요 대응 기준 90% ({threshold_90:,.0f} MW)",
+            annotation_text=f"수요 대응 기준 {threshold_pct}% ({threshold_90:,.0f} MW)",
             annotation_position="top right"
         )
         fig.update_layout(
@@ -608,11 +513,7 @@ if model_loaded:
             hovermode='x unified', height=500
         )
         st.plotly_chart(fig, use_container_width=True)
-
-        # 기상 데이터 차트
         st.markdown(f"### 🌡️ {selected_station_name} 기상 데이터 (전국 수요 영향 분석)")
-
-        # 실시간 기상값 기반 동적 설명
         weather_now = st.session_state.get("weather_now") or fetch_realtime_weather(selected_station_id, selected_station_name)
         if weather_now and weather_now.get('temp') is not None:
             temp = weather_now['temp']
@@ -632,7 +533,6 @@ if model_loaded:
             else:
                 weather_msg = f"🟣 현재 {selected_station_name} 기온 {temp}°C — **한파로 난방 수요 급증** 예상. 전국 전력 수요가 평소보다 크게 높아질 수 있습니다."
                 msg_type = 'error'
-
             if msg_type == 'error':
                 st.error(weather_msg)
             elif msg_type == 'warning':
@@ -643,7 +543,6 @@ if model_loaded:
                 st.info(weather_msg)
         else:
             st.info(f"💡 **{selected_station_name}** 지역의 기상 데이터를 조회하여 전국 전력 수요에 미치는 영향을 분석합니다. 사이드바에서 실시간 기상 조회 버튼을 눌러주세요!")
-
         if weather_df is not None:
             col1, col2 = st.columns(2)
             with col1:
@@ -674,11 +573,15 @@ if model_loaded:
                     font=dict(color='#1a2a4a'), height=300
                 )
                 st.plotly_chart(fig_humi, use_container_width=True)
-
-        # 시간대별 패턴
         st.markdown("### ⏰ 시간대별 평균 수요 패턴")
-        forecast_df['시간'] = forecast_df['날짜시간'].dt.hour
-        hourly = forecast_df.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
+        try:
+            raw_df = pd.read_csv(os.path.join(BASE_PATH, 'forecast_30d_서울.csv'), encoding='utf-8-sig')
+            raw_df['날짜시간'] = pd.to_datetime(raw_df['날짜시간'])
+            raw_df['시간'] = raw_df['날짜시간'].dt.hour
+            hourly = raw_df.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
+        except:
+            forecast_df['시간'] = forecast_df['날짜시간'].dt.hour
+            hourly = forecast_df.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
         fig2 = go.Figure()
         fig2.add_trace(go.Bar(
             x=hourly['시간'], y=hourly['앙상블예측(MW)'],
@@ -695,15 +598,8 @@ if model_loaded:
             font=dict(color='#1a2a4a'), height=350
         )
         st.plotly_chart(fig2, use_container_width=True)
-
-
-    # ──────────────────────────────────────────────────────────
-    #  Tab 2: 모델 성능 비교
-    # ──────────────────────────────────────────────────────────
-
     with tab2:
         st.markdown("### 📊 모델 성능 비교")
-
         perf_data = {
             '모델': ['XGBoost (단독)', 'LightGBM (단독)', '★ XGB+LGB 앙상블'],
             'MAPE(%)': [0.27, 0.27, 0.27],
@@ -713,10 +609,8 @@ if model_loaded:
         }
         perf_df = pd.DataFrame(perf_data)
         st.dataframe(perf_df, use_container_width=True, hide_index=True)
-
         col1, col2 = st.columns(2)
         colors = ['#e65100', '#ad1457', '#1565c0']
-
         with col1:
             fig3 = go.Figure()
             fig3.add_trace(go.Bar(
@@ -733,7 +627,6 @@ if model_loaded:
                 font=dict(color='#1a2a4a'), height=350
             )
             st.plotly_chart(fig3, use_container_width=True)
-
         with col2:
             fig4 = go.Figure()
             fig4.add_trace(go.Bar(
@@ -748,7 +641,6 @@ if model_loaded:
                 font=dict(color='#1a2a4a'), height=350
             )
             st.plotly_chart(fig4, use_container_width=True)
-
         st.markdown("### ⚖️ 앙상블 가중치 (NNLS)")
         col1, col2 = st.columns(2)
         with col1:
@@ -774,18 +666,10 @@ if model_loaded:
                 <div class="metric-label">LightGBM 가중치</div>
             </div>
             """, unsafe_allow_html=True)
-
-
-    # ──────────────────────────────────────────────────────────
-    #  Tab 3: 특성 중요도
-    # ──────────────────────────────────────────────────────────
-
     with tab3:
         st.markdown("### 🔍 특성 중요도 (XGBoost 기준)")
-
         importance = xgb_model.feature_importances_
         feat_names = xgb_model.get_booster().feature_names
-
         if feat_names is None:
             st.warning("특성 이름을 불러올 수 없어요.")
         else:
@@ -793,7 +677,6 @@ if model_loaded:
                 '특성': feat_names,
                 '중요도': importance
             }).sort_values('중요도', ascending=True).tail(20)
-
             fig6 = go.Figure()
             fig6.add_trace(go.Bar(
                 x=imp_df['중요도'], y=imp_df['특성'],
@@ -808,7 +691,6 @@ if model_loaded:
                 font=dict(color='#1a2a4a'), height=600
             )
             st.plotly_chart(fig6, use_container_width=True)
-
         if weather_df is not None:
             st.markdown(f"### 🌡️ 기온 vs 전력 수요 ({selected_station_name})")
             merged = pd.merge_asof(
@@ -832,15 +714,8 @@ if model_loaded:
                     font=dict(color='#1a2a4a'), height=400
                 )
                 st.plotly_chart(fig7, use_container_width=True)
-
-
-    # ──────────────────────────────────────────────────────────
-    #  Tab 4: 리포트/다운로드
-    # ──────────────────────────────────────────────────────────
-
     with tab4:
         st.markdown("### 📥 리포트 및 다운로드")
-
         summary = {
             '항목': ['예측 기준 시각', '예측 기간', '기상 지점', '평균 수요', '최대 수요', '최소 수요', '평균 발전량 기준', '앙상블 MAPE', '사양 달성'],
             '값': [
@@ -857,7 +732,6 @@ if model_loaded:
         }
         st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
         st.markdown("---")
-
         col1, col2 = st.columns(2)
         with col1:
             csv = forecast_df.to_csv(index=False, encoding='utf-8-sig')
@@ -877,38 +751,26 @@ if model_loaded:
                 mime='text/csv',
                 use_container_width=True
             )
-
         st.markdown("#### 🔎 예측 데이터 미리보기")
         st.dataframe(forecast_df.head(50), use_container_width=True, hide_index=True)
-
-
-    # ──────────────────────────────────────────────────────────
-    #  Tab 5: AI 챗봇
-    # ──────────────────────────────────────────────────────────
-
     with tab5:
         st.markdown("### 🤖 AI 챗봇 (Gemini)")
         st.markdown(f"전력 수요 예측 결과에 대해 질문하세요! (현재 지점: **{selected_station_name}**)")
-
         if 'chat_history' not in st.session_state:
             st.session_state.chat_history = []
-
         for msg in st.session_state.chat_history:
             if msg['role'] == 'user':
                 st.markdown(f'<div class="chat-user">👤 {msg["content"]}</div>', unsafe_allow_html=True)
             else:
                 st.markdown(f'<div class="chat-bot">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
-
         user_input = st.chat_input("질문을 입력하세요...")
-
         if user_input:
             st.session_state.chat_history.append({'role': 'user', 'content': user_input})
-
             context = f"""
             당신은 전력 수요 예측 전문 AI 어시스턴트입니다.
             현재 예측 시스템 정보:
             - 모델: XGBoost + LightGBM 앙상블
-            - 학습 기간: 2021년 ~ 2025년
+            - 학습 기간: 2021년 ~ 2026년
             - MAPE: 0.27% (사양 기준 2.6% 달성)
             - 예측 기간: {forecast_days}일
             - 기상 지점: {selected_station_name}
@@ -918,10 +780,9 @@ if model_loaded:
             - 최소 예측 수요: {min_demand:,.0f} MW
             - 평균 발전량 기준 (×1.149): {avg_gen:,.0f} MW
             - 앙상블 가중치: XGB {weights[0]:.3f}, LGB {weights[1]:.3f}
-            - 수요 대응 기준: 최대 수요의 90% = {threshold_90:,.0f} MW
+            - 수요 대응 기준: 최대 수요의 {threshold_pct}% = {threshold_90:,.0f} MW
             위 정보를 바탕으로 친절하고 전문적으로 한국어로 답변해주세요.
             """
-
             try:
                 payload = {"contents": [{"parts": [{"text": context + "\n\n사용자 질문: " + user_input}]}]}
                 res  = requests.post(GEMINI_URL, json=payload, timeout=30)
@@ -929,10 +790,8 @@ if model_loaded:
                 answer = data['candidates'][0]['content']['parts'][0]['text']
             except Exception as e:
                 answer = f"죄송합니다. 응답 생성 중 오류가 발생했어요. ({str(e)})"
-
             st.session_state.chat_history.append({'role': 'assistant', 'content': answer})
             st.rerun()
-
         st.markdown("#### 💡 추천 질문")
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -947,7 +806,11 @@ if model_loaded:
             if st.button("발전량 기준이 왜 필요해?", use_container_width=True):
                 st.session_state.chat_history.append({'role': 'user', 'content': '발전량 기준이 왜 필요해?'})
                 st.rerun()
-
         if st.button("대화 초기화", type="secondary"):
             st.session_state.chat_history = []
             st.rerun()
+
+# 자동 새로고침
+if auto_refresh:
+    time.sleep(300)
+    st.rerun()
