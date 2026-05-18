@@ -612,7 +612,7 @@ if model_loaded:
         st.markdown("### 📊 모델 성능 비교")
         perf_data = {
             '모델': ['XGBoost (단독)', 'LightGBM (단독)', '★ XGB+LGB 앙상블'],
-            'MAPE(%)': [0.27, 0.27, 0.27],
+            'MAPE(%)': [0.32, 0.32, 0.32],
             'RMSE(MW)': [271.2, 265.1, 264.3],
             'MAE(MW)': [171.0, 168.2, 167.3],
             '사양 달성': ['✅', '✅', '✅']
@@ -677,30 +677,58 @@ if model_loaded:
             </div>
             """, unsafe_allow_html=True)
     with tab3:
-        st.markdown("### 🔍 특성 중요도 (XGBoost 기준)")
-        importance = xgb_model.feature_importances_
-        feat_names = xgb_model.get_booster().feature_names
-        if feat_names is None:
-            st.warning("특성 이름을 불러올 수 없어요.")
-        else:
-            imp_df = pd.DataFrame({
-                '특성': feat_names,
-                '중요도': importance
-            }).sort_values('중요도', ascending=True).tail(20)
-            fig6 = go.Figure()
-            fig6.add_trace(go.Bar(
-                x=imp_df['중요도'], y=imp_df['특성'],
-                orientation='h', marker_color='#1565c0',
-                hovertemplate='%{y}<br>중요도: %{x:.4f}<extra></extra>'
-            ))
-            fig6.update_layout(
-                title='상위 20개 특성 중요도',
-                xaxis=dict(title='중요도', gridcolor='#e0e8f0'),
-                yaxis=dict(gridcolor='#e0e8f0'),
-                plot_bgcolor='white', paper_bgcolor='white',
-                font=dict(color='#1a2a4a'), height=600
-            )
-            st.plotly_chart(fig6, use_container_width=True)
+        st.markdown("### 🔍 특성 중요도 비교")
+        subtab_xgb, subtab_lgb = st.tabs(["🟠 XGBoost", "🟣 LightGBM"])
+
+        with subtab_xgb:
+            st.markdown("#### XGBoost 상위 20개 특성 중요도")
+            feat_names = xgb_model.get_booster().feature_names
+            if feat_names is None:
+                st.warning("특성 이름을 불러올 수 없어요.")
+            else:
+                imp_df = pd.DataFrame({
+                    '특성': feat_names,
+                    '중요도': xgb_model.feature_importances_
+                }).sort_values('중요도', ascending=True).tail(20)
+                fig6 = go.Figure()
+                fig6.add_trace(go.Bar(
+                    x=imp_df['중요도'], y=imp_df['특성'],
+                    orientation='h', marker_color='#e65100',
+                    hovertemplate='%{y}<br>중요도: %{x:.4f}<extra></extra>'
+                ))
+                fig6.update_layout(
+                    xaxis=dict(title='중요도', gridcolor='#e0e8f0'),
+                    yaxis=dict(gridcolor='#e0e8f0'),
+                    plot_bgcolor='white', paper_bgcolor='white',
+                    font=dict(color='#1a2a4a'), height=600
+                )
+                st.plotly_chart(fig6, use_container_width=True)
+
+        with subtab_lgb:
+            st.markdown("#### LightGBM 상위 20개 특성 중요도")
+            try:
+                lgb_feat_names = lgb_model.feature_name()
+                lgb_importance = lgb_model.feature_importance(importance_type='gain')
+                lgb_imp_df = pd.DataFrame({
+                    '특성': lgb_feat_names,
+                    '중요도': lgb_importance
+                }).sort_values('중요도', ascending=True).tail(20)
+                fig6b = go.Figure()
+                fig6b.add_trace(go.Bar(
+                    x=lgb_imp_df['중요도'], y=lgb_imp_df['특성'],
+                    orientation='h', marker_color='#ad1457',
+                    hovertemplate='%{y}<br>중요도: %{x:.4f}<extra></extra>'
+                ))
+                fig6b.update_layout(
+                    xaxis=dict(title='중요도 (gain)', gridcolor='#e0e8f0'),
+                    yaxis=dict(gridcolor='#e0e8f0'),
+                    plot_bgcolor='white', paper_bgcolor='white',
+                    font=dict(color='#1a2a4a'), height=600
+                )
+                st.plotly_chart(fig6b, use_container_width=True)
+            except Exception as e:
+                st.warning(f"LightGBM 특성 중요도를 불러올 수 없어요: {e}")
+
         if weather_df is not None:
             st.markdown(f"### 🌡️ 기온 vs 전력 수요 ({selected_station_name})")
             merged = pd.merge_asof(
