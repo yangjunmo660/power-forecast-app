@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 #  설정
 # ══════════════════════════════════════════════════════════════
 BASE_PATH = r'C:\Users\rokaf' if os.path.exists(r'C:\Users\rokaf\xgb_model.pkl') else '.'
-# API 키 - Streamlit Secrets 또는 로컬 secrets.toml에서 불러오기
 try:
     GEMINI_API_KEY = st.secrets['GEMINI_API_KEY']
     KMA_API_KEY    = st.secrets['KMA_API_KEY']
@@ -55,7 +54,6 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
     * { font-family: 'Noto Sans KR', sans-serif; }
-    /* 리렌더링 시 흐려지는 효과 제거 */
     .stApp, .stApp *,
     [data-testid="stAppViewContainer"],
     [data-testid="stAppViewBlockContainer"],
@@ -146,7 +144,6 @@ def load_weather_by_station(station_id):
     return weather
 def fetch_realtime_weather(station_id, station_name='서울'):
     import json
-    # 방법 1: GitHub Actions가 저장한 JSON 파일 읽기
     try:
         for json_path in ['weather_realtime.json',
                           os.path.join(os.path.dirname(os.path.abspath(__file__)), 'weather_realtime.json'),
@@ -159,7 +156,6 @@ def fetch_realtime_weather(station_id, station_name='서울'):
                 break
     except Exception:
         pass
-    # 방법 2: 직접 API 호출
     for h in range(1, 4):
         try:
             tm = (datetime.utcnow() + timedelta(hours=9) - timedelta(hours=h)).replace(
@@ -262,7 +258,10 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
 def fetch_realtime_power():
     import xml.etree.ElementTree as ET
     import json
-    json_path = os.path.join(BASE_PATH, 'power_realtime.json') if BASE_PATH != '.' else 'power_realtime.json'
+    import traceback
+
+    # 방법 1: JSON 파일 읽기
+    json_path = 'power_realtime.json'
     try:
         with open(json_path, 'r') as f:
             data = json.load(f)
@@ -270,13 +269,23 @@ def fetch_realtime_power():
             return data, None
     except Exception:
         pass
+
+    # 방법 2: KPX API 직접 호출
+    if not KPX_API_KEY:
+        return None, 'KPX_API_KEY가 Secrets에 없음'
+
     try:
-        if not KPX_API_KEY:
-            return None, 'KPX_API_KEY 없음'
         url = 'https://openapi.kpx.or.kr/openapi/sukub5mMaxDatetime/getSukub5mMaxDatetime'
         params = {'serviceKey': KPX_API_KEY, 'numOfRows': 1, 'pageNo': 1}
         res = requests.get(url, params=params, timeout=10)
+        raw_response = res.text[:500]
+
         root = ET.fromstring(res.text)
+        result_code = root.findtext('.//resultCode', '')
+        result_msg  = root.findtext('.//resultMsg', '')
+        if result_code and result_code != '00':
+            return None, f'API 오류 [{result_code}]: {result_msg}\n응답: {raw_response}'
+
         item = root.find('.//item')
         if item is not None:
             return {
@@ -287,9 +296,12 @@ def fetch_realtime_power():
                 'suppReserveRate': float(item.findtext('suppReserveRate', '0')),
                 'baseDatetime':    item.findtext('baseDatetime', ''),
             }, None
-        return None, 'item 없음'
-    except Exception as e:
-        return None, str(e)
+
+        return None, f'item 없음\n응답: {raw_response}'
+
+    except Exception:
+        return None, traceback.format_exc()
+
 # ══════════════════════════════════════════════════════════════
 #  사이드바
 # ══════════════════════════════════════════════════════════════
@@ -396,7 +408,18 @@ if model_loaded:
     avg_gen     = today_df['발전량기준(MW)'].mean()
     max_gen     = today_df['발전량기준(MW)'].max()
     threshold_90 = max_demand * (threshold_pct / 100)
+
     power_now, power_err = fetch_realtime_power()
+
+    # ── KPX API 디버그 정보 (원인 파악 후 삭제 가능) ──
+    with st.expander("🔧 KPX API 디버그 정보", expanded=False):
+        st.write(f"**KPX_API_KEY 존재:** {'✅ 있음' if KPX_API_KEY else '❌ 없음'}")
+        st.write(f"**API 결과:** {'✅ 성공' if power_now else '❌ 실패'}")
+        if power_err:
+            st.code(power_err, language='text')
+        if power_now:
+            st.json(power_now)
+
     if power_now and power_now['currPwrTot'] > 0:
         current_demand = power_now['currPwrTot']
         supply_ability = power_now['suppAbility']
@@ -413,6 +436,7 @@ if model_loaded:
         supply_ability = max_gen
         reserve_rate   = None
         use_realtime   = False
+
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📈 예측 대시보드",
         "📊 모델 성능 비교",
@@ -632,7 +656,7 @@ if model_loaded:
                            annotation_text='사양 기준 (2.6%)')
             fig3.update_layout(
                 title='MAPE 비교',
-                yaxis=dict(title='MAPE (%)', gridcolor='#e0e8f0'),
+                yaxis=dict(title='MAPE (%)', gridcolor='#e0e8f0', range=[0, 0.5]),
                 plot_bgcolor='white', paper_bgcolor='white',
                 font=dict(color='#1a2a4a'), height=350
             )
@@ -679,7 +703,6 @@ if model_loaded:
     with tab3:
         st.markdown("### 🔍 특성 중요도 비교")
         subtab_xgb, subtab_lgb = st.tabs(["🟠 XGBoost", "🟣 LightGBM"])
-
         with subtab_xgb:
             st.markdown("#### XGBoost 상위 20개 특성 중요도")
             feat_names = xgb_model.get_booster().feature_names
@@ -703,7 +726,6 @@ if model_loaded:
                     font=dict(color='#1a2a4a'), height=600
                 )
                 st.plotly_chart(fig6, use_container_width=True)
-
         with subtab_lgb:
             st.markdown("#### LightGBM 상위 20개 특성 중요도")
             try:
@@ -728,7 +750,6 @@ if model_loaded:
                 st.plotly_chart(fig6b, use_container_width=True)
             except Exception as e:
                 st.warning(f"LightGBM 특성 중요도를 불러올 수 없어요: {e}")
-
         if weather_df is not None:
             st.markdown(f"### 🌡️ 기온 vs 전력 수요 ({selected_station_name})")
             merged = pd.merge_asof(
@@ -764,7 +785,7 @@ if model_loaded:
                 f'{max_demand:,.1f} MW',
                 f'{min_demand:,.1f} MW',
                 f'{avg_gen:,.1f} MW',
-                '0.27%',
+                '0.32%',
                 '✅ MAPE ≤ 2.6% 달성'
             ]
         }
@@ -809,7 +830,7 @@ if model_loaded:
             현재 예측 시스템 정보:
             - 모델: XGBoost + LightGBM 앙상블
             - 학습 기간: 2021년 ~ 2026년
-            - MAPE: 0.27% (사양 기준 2.6% 달성)
+            - MAPE: 0.32% (사양 기준 2.6% 달성)
             - 예측 기간: {forecast_days}일
             - 기상 지점: {selected_station_name}
             - 예측 기준 시각: {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')}
