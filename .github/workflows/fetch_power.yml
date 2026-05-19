@@ -1,8 +1,9 @@
 name: Fetch Power Data
+
 on:
   schedule:
-    - cron: '*/5 * * * *'
-    - cron: '0 15 * * *'
+    - cron: '*/5 * * * *'   # 5분마다 기상/전력 데이터 수집
+    - cron: '0 15 * * *'    # 매일 한국 시간 자정(UTC 15시)에 CSV 날짜 업데이트
   push:
     branches: [main]
   workflow_dispatch:
@@ -10,7 +11,130 @@ on:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    ...
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests pandas
+
+      - name: Fetch power and weather data
+        env:
+          KPX_API_KEY: ${{ secrets.KPX_API_KEY }}
+          KMA_API_KEY: ${{ secrets.KMA_API_KEY }}
+        run: |
+          python - <<'PYEOF'
+          import requests
+          import xml.etree.ElementTree as ET
+          import json
+          import os
+          from datetime import datetime, timedelta
+
+          # 전력 데이터
+          KPX_API_KEY = os.environ.get('KPX_API_KEY', '')
+          try:
+              url = 'https://openapi.kpx.or.kr/openapi/sukub5mMaxDatetime/getSukub5mMaxDatetime'
+              params = {'serviceKey': KPX_API_KEY, 'numOfRows': 1, 'pageNo': 1}
+              res = requests.get(url, params=params, timeout=15)
+              root = ET.fromstring(res.text)
+              item = root.find('.//item')
+              if item is not None:
+                  power_data = {
+                      'currPwrTot':      float(item.findtext('currPwrTot', '0')),
+                      'suppAbility':     float(item.findtext('suppAbility', '0')),
+                      'forecastLoad':    float(item.findtext('forecastLoad', '0')),
+                      'suppReservePwr':  float(item.findtext('suppReservePwr', '0')),
+                      'suppReserveRate': float(item.findtext('suppReserveRate', '0')),
+                      'baseDatetime':    item.findtext('baseDatetime', ''),
+                      'updated_at':      datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+                  }
+                  with open('power_realtime.json', 'w') as f:
+                      json.dump(power_data, f, ensure_ascii=False)
+                  print(f'전력 저장 완료: {power_data}')
+          except Exception as e:
+              print(f'전력 오류: {e}')
+
+          # 기상 데이터 (5개 지점)
+          KMA_API_KEY = os.environ.get('KMA_API_KEY', '')
+          STATIONS = {'서울': 108, '부산': 159, '대구': 143, '광주': 156, '대전': 133}
+          weather_data = {}
+
+          for station_name, station_id in STATIONS.items():
+              for h in range(1, 5):
+                  try:
+                      now = datetime.utcnow() + timedelta(hours=9) - timedelta(hours=h)
+                      tm = now.replace(minute=0, second=0, microsecond=0).strftime('%Y%m%d%H%M')
+                      url = 'https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php'
+                      params = {'tm': tm, 'stn': station_id, 'help': '0', 'authKey': KMA_API_KEY}
+                      res = requests.get(url, params=params, timeout=10)
+                      lines = [l for l in res.text.strip().split('\n') if not l.startswith('#') and l.strip()]
+                      if lines:
+                          parts = lines[0].split()
+                          if len(parts) >= 14:
+                              def safe(v):
+                                  try:
+                                      f = float(v)
+                                      return f if f > -9 else None
+                                  except:
+                                      return None
+                              weather_data[station_name] = {
+                                  'temp': safe(parts[11]),
+                                  'humi': safe(parts[13]),
+                                  'wind': safe(parts[3]),
+                                  'rain': 0.0,
+                                  'time': (datetime.utcnow() + timedelta(hours=9)).strftime('%Y%m%d%H%M')
+                              }
+                              print(f'{station_name} 저장 완료')
+                              break
+                  except Exception:
+                      continue
+
+          with open('weather_realtime.json', 'w', encoding='utf-8') as f:
+              json.dump(weather_data, f, ensure_ascii=False)
+          print(f'기상 저장 완료: {list(weather_data.keys())}')
+          PYEOF
+
+      - name: Update CSV dates (daily at midnight KST)
+        run: |
+          python - <<'PYEOF'
+          import pandas as pd
+          from datetime import datetime, timedelta
+          import os
+
+          stations = ['서울', '부산', '대구', '광주', '대전']
+          now = datetime.utcnow() + timedelta(hours=9)
+          now = now.replace(second=0, microsecond=0)
+          now = now - timedelta(minutes=now.minute % 5)
+
+          updated = False
+          for station in stations:
+              csv_path = f'forecast_30d_{station}.csv'
+              if not os.path.exists(csv_path):
+                  print(f'{station} CSV 없음')
+                  continue
+              df = pd.read_csv(csv_path, encoding='utf-8-sig')
+              df['날짜시간'] = pd.to_datetime(df['날짜시간'])
+              first_date = df['날짜시간'].dt.date.iloc[0]
+              today = now.date()
+              # 날짜가 오늘과 다르면 업데이트
+              if first_date != today:
+                  future_ds = pd.date_range(now, periods=len(df), freq='5min')
+                  df['날짜시간'] = future_ds
+                  df['발전량기준(MW)'] = (df['앙상블예측(MW)'] * 1.149).round(1)
+                  df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+                  print(f'{station} CSV 날짜 업데이트 완료')
+                  updated = True
+              else:
+                  print(f'{station} CSV 이미 최신')
+          PYEOF
+
       - name: Commit and push
         run: |
           git config --global user.name 'github-actions'
