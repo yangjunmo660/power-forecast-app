@@ -428,7 +428,7 @@ if model_loaded:
 
     with tab2:
         st.markdown("### 📊 모델 성능 비교")
-        perf_data = {'모델': ['XGBoost (단독)','LightGBM (단독)','★ XGB+LGB 앙상블'], 'MAPE(%)': [0.32,0.32,0.32], 'RMSE(MW)': [271.2,265.1,264.3], 'MAE(MW)': [171.0,168.2,167.3], '사양 달성': ['✅','✅','✅']}
+        perf_data = {'모델': ['XGBoost (단독)','LightGBM (단독)','★ XGB+LGB 앙상블'], 'MAPE(%)': [0.32,0.33,0.32], 'RMSE(MW)': [344.7,353.3,347.6], 'MAE(MW)': [186.7,190.4,186.3], '사양 달성': ['✅','✅','✅']}
         perf_df = pd.DataFrame(perf_data)
         st.dataframe(perf_df, use_container_width=True, hide_index=True)
         col1, col2 = st.columns(2)
@@ -437,12 +437,12 @@ if model_loaded:
             fig3 = go.Figure()
             fig3.add_trace(go.Bar(x=perf_df['모델'], y=perf_df['MAPE(%)'], marker_color=colors, hovertemplate='%{x}<br>MAPE: %{y}%<extra></extra>'))
             fig3.add_hline(y=2.6, line_dash='dot', line_color='#f44336', annotation_text='사양 기준 (2.6%)')
-            fig3.update_layout(title='MAPE 비교', yaxis=dict(title='MAPE (%)', gridcolor='#e0e8f0', range=[0,0.5]), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=350)
+            fig3.update_layout(title='MAPE 비교', yaxis=dict(title='MAPE (%)', gridcolor='#e0e8f0', range=[0.31,0.34]), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=350)
             st.plotly_chart(fig3, use_container_width=True)
         with col2:
             fig4 = go.Figure()
             fig4.add_trace(go.Bar(x=perf_df['모델'], y=perf_df['RMSE(MW)'], marker_color=colors, hovertemplate='%{x}<br>RMSE: %{y} MW<extra></extra>'))
-            fig4.update_layout(title='RMSE 비교', yaxis=dict(title='RMSE (MW)', gridcolor='#e0e8f0'), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=350)
+            fig4.update_layout(title='RMSE 비교', yaxis=dict(title='RMSE (MW)', gridcolor='#e0e8f0', range=[330,360]), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=350)
             st.plotly_chart(fig4, use_container_width=True)
         st.markdown("### ⚖️ 앙상블 가중치 (NNLS)")
         col1, col2 = st.columns(2)
