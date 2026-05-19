@@ -178,19 +178,13 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
         df['날짜시간'] = df['날짜시간'] + diff
         df = df.head(forecast_days * 288).copy()
 
-        # KPX 실시간값으로 보정
+        # KPX 실시간값으로 현재 시점 1개만 교체
         if seed_value is not None and seed_value > 0:
-            csv_current = df['앙상블예측(MW)'].iloc[0]
-            if csv_current > 0:
-                scale = seed_value / csv_current
-                n = len(df)
-                # 현재 시점은 실제값 기준, 30일 후는 모델 예측값으로 자연스럽게 수렴
-                decay = np.linspace(scale, 1.0, n)
-                df['앙상블예측(MW)'] = (df['앙상블예측(MW)'] * decay).round(1)
-                if 'XGB예측(MW)' in df.columns:
-                    df['XGB예측(MW)'] = (df['XGB예측(MW)'] * decay).round(1)
-                if 'LGB예측(MW)' in df.columns:
-                    df['LGB예측(MW)'] = (df['LGB예측(MW)'] * decay).round(1)
+            df['앙상블예측(MW)'].iloc[0] = round(seed_value, 1)
+            if 'XGB예측(MW)' in df.columns:
+                df['XGB예측(MW)'].iloc[0] = round(seed_value, 1)
+            if 'LGB예측(MW)' in df.columns:
+                df['LGB예측(MW)'].iloc[0] = round(seed_value, 1)
 
         df['발전량기준(MW)'] = (df['앙상블예측(MW)'] * 1.149).round(1)
         return df, seed_value is not None
