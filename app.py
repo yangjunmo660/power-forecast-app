@@ -491,13 +491,12 @@ if model_loaded:
     with tab4:
         st.markdown("### 📥 리포트 및 다운로드")
         summary = {
-            '항목': ['예측 기준 시각','예측 기간','기상 지점','평균 수요','최대 수요','최소 수요','평균 발전량 기준','앙상블 MAPE','KPX 보정 여부','사양 달성'],
+            '항목': ['예측 기준 시각','예측 기간','기상 지점','평균 수요','최대 수요','최소 수요','평균 발전량 기준','앙상블 MAPE','사양 달성'],
             '값': [
                 (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M'),
                 f'{forecast_days}일', selected_station_name,
                 f'{avg_demand:,.1f} MW', f'{max_demand:,.1f} MW', f'{min_demand:,.1f} MW',
                 f'{avg_gen:,.1f} MW', '0.32%',
-                '✅ KPX 실시간 보정 적용' if used_kpx else '❌ CSV 기반',
                 '✅ MAPE ≤ 2.6% 달성'
             ]
         }
@@ -505,11 +504,11 @@ if model_loaded:
         st.markdown("---")
         col1, col2 = st.columns(2)
         with col1:
-            csv = forecast_df.to_csv(index=False, encoding='utf-8-sig')
-            st.download_button(label="📥 예측 결과 CSV 다운로드", data=csv, file_name=f'전력수요예측_{forecast_days}일_{selected_station_name}.csv', mime='text/csv', use_container_width=True)
+            csv = forecast_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+            st.download_button(label="📥 예측 결과 CSV 다운로드", data=csv, file_name=f'전력수요예측_{forecast_days}일_{selected_station_name}.csv', mime='text/csv; charset=utf-8-sig', use_container_width=True)
         with col2:
-            daily_csv = daily.to_csv(index=False, encoding='utf-8-sig')
-            st.download_button(label="📥 일별 집계 CSV 다운로드", data=daily_csv, file_name=f'일별집계_{forecast_days}일_{selected_station_name}.csv', mime='text/csv', use_container_width=True)
+            daily_csv = daily.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+            st.download_button(label="📥 일별 집계 CSV 다운로드", data=daily_csv, file_name=f'일별집계_{forecast_days}일_{selected_station_name}.csv', mime='text/csv; charset=utf-8-sig', use_container_width=True)
         st.markdown("#### 🔎 예측 데이터 미리보기")
         st.dataframe(forecast_df.head(50), use_container_width=True, hide_index=True)
 
