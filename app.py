@@ -308,7 +308,7 @@ if model_loaded:
     if used_kpx:
         st.success(f"✅ KPX 실시간 수요({seed_value:,.0f} MW) 기반으로 예측값을 보정했습니다.")
     else:
-        st.info("ℹ️ KPX API 미연결 — CSV 기반 예측값 표시 중 (KPX 연결 시 실시간 보정 자동 적용)")
+        pass
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 예측 대시보드","📊 모델 성능 비교","🔍 특성 중요도","📥 리포트/다운로드","🤖 AI 챗봇"])
 
