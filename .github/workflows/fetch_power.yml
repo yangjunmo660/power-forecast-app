@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -65,7 +67,6 @@ jobs:
           KMA_API_KEY = os.environ.get('KMA_API_KEY', '')
           STATIONS = {'서울': 108, '부산': 159, '대구': 143, '광주': 156, '대전': 133}
           weather_data = {}
-
           for station_name, station_id in STATIONS.items():
               for h in range(1, 5):
                   try:
@@ -95,7 +96,6 @@ jobs:
                               break
                   except Exception:
                       continue
-
           with open('weather_realtime.json', 'w', encoding='utf-8') as f:
               json.dump(weather_data, f, ensure_ascii=False)
           print(f'기상 저장 완료: {list(weather_data.keys())}')
@@ -113,7 +113,6 @@ jobs:
           now = now.replace(second=0, microsecond=0)
           now = now - timedelta(minutes=now.minute % 5)
 
-          updated = False
           for station in stations:
               csv_path = f'forecast_30d_{station}.csv'
               if not os.path.exists(csv_path):
@@ -123,14 +122,12 @@ jobs:
               df['날짜시간'] = pd.to_datetime(df['날짜시간'])
               first_date = df['날짜시간'].dt.date.iloc[0]
               today = now.date()
-              # 날짜가 오늘과 다르면 업데이트
               if first_date != today:
                   future_ds = pd.date_range(now, periods=len(df), freq='5min')
                   df['날짜시간'] = future_ds
                   df['발전량기준(MW)'] = (df['앙상블예측(MW)'] * 1.149).round(1)
                   df.to_csv(csv_path, index=False, encoding='utf-8-sig')
                   print(f'{station} CSV 날짜 업데이트 완료')
-                  updated = True
               else:
                   print(f'{station} CSV 이미 최신')
           PYEOF
@@ -141,5 +138,6 @@ jobs:
           git config --global user.email 'actions@github.com'
           git add power_realtime.json weather_realtime.json forecast_30d_*.csv
           git diff --staged --quiet || git commit -m "Update realtime data [skip ci]"
-          git pull --rebase origin main
-          git push
+          git fetch origin main
+          git rebase origin/main || (git rebase --abort && git push --force-with-lease origin main)
+          git push origin main
