@@ -318,7 +318,8 @@ if model_loaded:
             if use_realtime and reserve_rate is not None:
                 st.markdown(f'<div class="metric-card"><div class="metric-value">{reserve_rate:.1f}%</div><div class="metric-label">실시간 공급 예비율</div></div>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="metric-card"><div class="metric-value">{avg_gen:,.0f}</div><div class="metric-label">오늘 평균 발전량 (MW)</div></div>', unsafe_allow_html=True)
+                calc_reserve = (avg_gen - current_demand) / current_demand * 100
+                st.markdown(f'<div class="metric-card"><div class="metric-value">{calc_reserve:.1f}%</div><div class="metric-label">공급 예비율</div></div>', unsafe_allow_html=True)
         with col4:
             st.markdown(f'<div class="metric-card"><div class="metric-value">0.32%</div><div class="metric-label">앙상블 MAPE</div></div>', unsafe_allow_html=True)
         st.markdown("---")
