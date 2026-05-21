@@ -119,16 +119,11 @@ jobs:
                   continue
               df = pd.read_csv(csv_path, encoding='utf-8-sig')
               df['날짜시간'] = pd.to_datetime(df['날짜시간'])
-              first_date = df['날짜시간'].dt.date.iloc[0]
-              today = now.date()
-              if first_date != today:
-                  future_ds = pd.date_range(now, periods=len(df), freq='5min')
-                  df['날짜시간'] = future_ds
-                  df['발전량기준(MW)'] = (df['앙상블예측(MW)'] * 1.149).round(1)
-                  df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-                  print(f'{station} CSV 날짜 업데이트 완료')
-              else:
-                  print(f'{station} CSV 이미 최신')
+              future_ds = pd.date_range(now, periods=len(df), freq='5min')
+              df['날짜시간'] = future_ds
+              df['발전량기준(MW)'] = (df['앙상블예측(MW)'] * 1.149).round(1)
+              df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+              print(f'{station} CSV 오전 9시 기준 업데이트 완료')
           PYEOF
 
       - name: Commit and push
