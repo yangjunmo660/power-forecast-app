@@ -432,7 +432,7 @@ if model_loaded:
 
     with tab3:
         st.markdown("### 🔍 특성 중요도 비교")
-        subtab_xgb, subtab_lgb = st.tabs(["🟠 XGBoost","🟣 LightGBM"])
+        subtab_xgb, subtab_lgb, subtab_ens = st.tabs(["🟠 XGBoost","🟣 LightGBM","⚡ 앙상블"])
         with subtab_xgb:
             st.markdown("#### XGBoost 상위 20개 특성 중요도")
             feat_names = xgb_model.get_booster().feature_names
@@ -456,6 +456,22 @@ if model_loaded:
                 st.plotly_chart(fig6b, use_container_width=True)
             except Exception as e:
                 st.warning(f"LightGBM 특성 중요도를 불러올 수 없어요: {e}")
+        with subtab_ens:
+            st.markdown("#### 앙상블 상위 20개 특성 중요도 (가중 합산)")
+            try:
+                xgb_names = xgb_model.get_booster().feature_names
+                xgb_imp   = xgb_model.feature_importances_
+                lgb_names = lgb_model.booster_.feature_name()
+                lgb_imp   = lgb_model.booster_.feature_importance(importance_type='gain')
+                lgb_imp_norm = lgb_imp / lgb_imp.sum()
+                ens_imp = weights[0] * xgb_imp + weights[1] * lgb_imp_norm
+                ens_df = pd.DataFrame({'특성': xgb_names, '중요도': ens_imp}).sort_values('중요도', ascending=True).tail(20)
+                fig_ens = go.Figure()
+                fig_ens.add_trace(go.Bar(x=ens_df['중요도'], y=ens_df['특성'], orientation='h', marker_color='#1565c0', hovertemplate='%{y}<br>중요도: %{x:.4f}<extra></extra>'))
+                fig_ens.update_layout(xaxis=dict(title='중요도 (가중 합산)', gridcolor='#e0e8f0'), yaxis=dict(gridcolor='#e0e8f0'), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=600)
+                st.plotly_chart(fig_ens, use_container_width=True)
+            except Exception as e:
+                st.warning(f"앙상블 특성 중요도를 불러올 수 없어요: {e}")
         if weather_df is not None:
             st.markdown(f"### 🌡️ 기온 vs 전력 수요 ({selected_station_name})")
             merged = pd.merge_asof(forecast_df.sort_values('날짜시간'), weather_df.rename(columns={'ds':'날짜시간'}).sort_values('날짜시간'), on='날짜시간', direction='nearest')
