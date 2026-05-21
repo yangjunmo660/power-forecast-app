@@ -110,8 +110,7 @@ jobs:
 
           stations = ['서울', '부산', '대구', '광주', '대전']
           now = datetime.utcnow() + timedelta(hours=9)
-          now = now.replace(second=0, microsecond=0)
-          now = now - timedelta(minutes=now.minute % 5)
+          now = now.replace(hour=9, minute=0, second=0, microsecond=0)
 
           for station in stations:
               csv_path = f'forecast_30d_{station}.csv'
