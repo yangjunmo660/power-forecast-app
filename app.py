@@ -17,7 +17,6 @@ except:
     GEMINI_API_KEY = ''
     KMA_API_KEY    = ''
     KPX_API_KEY    = ''
-
 GEMINI_URL = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}'
 STATIONS = {'서울': 108, '부산': 159, '대구': 143, '광주': 156, '대전': 133}
 WEATHER_FILES = [
@@ -37,7 +36,6 @@ FEAT_COLS = [
     'roll_288_mean','roll_288_std','roll_288_max','roll_288_min',
     'temp','humi','wind','rain','temp_sq','heat_index','feels_like'
 ]
-
 st.set_page_config(page_title="전력 수요 예측 시스템", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
@@ -99,7 +97,7 @@ def load_weather_by_station(station_id):
 
 def fetch_realtime_power():
     import xml.etree.ElementTree as ET
-    import json
+    import json, traceback
     for json_path in ['power_realtime.json',
                       os.path.join(os.path.dirname(os.path.abspath(__file__)), 'power_realtime.json'),
                       '/mount/src/power-forecast-app/power_realtime.json']:
@@ -117,7 +115,12 @@ def fetch_realtime_power():
         url = 'https://openapi.kpx.or.kr/openapi/sukub5mMaxDatetime/getSukub5mMaxDatetime'
         params = {'serviceKey': KPX_API_KEY, 'numOfRows': 1, 'pageNo': 1}
         res = requests.get(url, params=params, timeout=10)
+        raw_response = res.text[:500]
         root = ET.fromstring(res.text)
+        result_code = root.findtext('.//resultCode', '')
+        result_msg  = root.findtext('.//resultMsg', '')
+        if result_code and result_code != '00':
+            return None, f'API 오류 [{result_code}]: {result_msg}\n응답: {raw_response}'
         item = root.find('.//item')
         if item is not None:
             return {
@@ -128,9 +131,9 @@ def fetch_realtime_power():
                 'suppReserveRate': float(item.findtext('suppReserveRate','0')),
                 'baseDatetime':    item.findtext('baseDatetime',''),
             }, None
-        return None, 'item 없음'
-    except Exception as e:
-        return None, str(e)
+        return None, f'item 없음\n응답: {raw_response}'
+    except Exception:
+        return None, traceback.format_exc()
 
 def fetch_realtime_weather(station_id, station_name='서울'):
     import json
@@ -177,23 +180,18 @@ def run_realtime_forecast(xgb_model, lgb_model, weights, holidays, weather_df, f
         diff = now - df['날짜시간'].min()
         df['날짜시간'] = df['날짜시간'] + diff
         df = df.head(forecast_days * 288).copy()
-
-        # KPX 실시간값으로 현재 시점 1개만 교체
         if seed_value is not None and seed_value > 0:
             df['앙상블예측(MW)'].iloc[0] = round(seed_value, 1)
             if 'XGB예측(MW)' in df.columns:
                 df['XGB예측(MW)'].iloc[0] = round(seed_value, 1)
             if 'LGB예측(MW)' in df.columns:
                 df['LGB예측(MW)'].iloc[0] = round(seed_value, 1)
-
         df['발전량기준(MW)'] = (df['앙상블예측(MW)'] * 1.149).round(1)
         return df, seed_value is not None
     except Exception:
         return pd.DataFrame(), False
 
-# ══════════════════════════════════════════════════════════════
-#  사이드바
-# ══════════════════════════════════════════════════════════════
+# ══ 사이드바 ══
 with st.sidebar:
     st.markdown("## ⚡ 전력 수요 예측")
     st.markdown("---")
@@ -236,9 +234,7 @@ with st.sidebar:
     st.markdown("### 📁 학습 데이터")
     st.markdown("- 기간: 2021 ~ 2026년\n- 전력 데이터: 550,945건\n- 공휴일: 137일")
 
-# ══════════════════════════════════════════════════════════════
-#  메인
-# ══════════════════════════════════════════════════════════════
+# ══ 메인 ══
 st.markdown("# ⚡ 전력 수요 예측 시스템")
 st.markdown(f"**XGBoost + LightGBM 앙상블 | 2021~2026 학습 데이터 | 전국 단위 예측**")
 st.markdown(f"🕐 현재 시각: **{(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M')}** 기준 실시간 예측")
@@ -253,16 +249,12 @@ except Exception as e:
     model_loaded = False
 
 if model_loaded:
-    # 1. KPX 실시간 수요 먼저 조회
     power_now, power_err = fetch_realtime_power()
     seed_value = power_now['currPwrTot'] if (power_now and power_now.get('currPwrTot', 0) > 0) else None
 
-    # 2. seed_value 기반 보정 예측
     with st.spinner("🔄 실시간 예측 중..."):
         forecast_df, used_kpx = run_realtime_forecast(
-            xgb_model, lgb_model, weights, holidays, weather_df,
-            forecast_days, '서울', seed_value=seed_value
-        )
+            xgb_model, lgb_model, weights, holidays, weather_df, forecast_days, '서울', seed_value=seed_value)
 
     if len(forecast_df) == 0:
         st.error("예측 데이터 생성 실패")
@@ -298,11 +290,8 @@ if model_loaded:
         reserve_rate   = None
         use_realtime   = False
 
-    # KPX 보정 상태 표시
     if used_kpx:
         st.success(f"✅ KPX 실시간 수요({seed_value:,.0f} MW) 기반으로 예측값을 보정했습니다.")
-    else:
-        pass
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 예측 대시보드","📊 모델 성능 비교","🔍 특성 중요도","📥 리포트/다운로드","🤖 AI 챗봇"])
 
@@ -323,11 +312,9 @@ if model_loaded:
         with col4:
             st.markdown(f'<div class="metric-card"><div class="metric-value">0.32%</div><div class="metric-label">앙상블 MAPE</div></div>', unsafe_allow_html=True)
         st.markdown("---")
-
         for key in ['alert_sent','standby_called','emergency_called','generator_called']:
             if key not in st.session_state:
                 st.session_state[key] = False
-
         if current_demand >= max_gen:
             st.markdown(f'<div class="alert-danger">🚨 <b>비상 수요 관리 발동!</b> 현재 수요({current_demand:,.0f} MW)가 최대 발전량({max_gen:,.0f} MW)을 초과했습니다.</div>', unsafe_allow_html=True)
             col_a1, col_a2 = st.columns(2)
@@ -371,12 +358,7 @@ if model_loaded:
         fig.add_trace(go.Scatter(x=forecast_hourly['날짜시간'], y=forecast_hourly['XGB예측(MW)'], name='XGBoost', line=dict(color='#e65100', width=1, dash='dash'), hovertemplate='%{x}<br>XGB: %{y:,.0f} MW<extra></extra>'))
         fig.add_trace(go.Scatter(x=forecast_hourly['날짜시간'], y=forecast_hourly['LGB예측(MW)'], name='LightGBM', line=dict(color='#ad1457', width=1, dash='dash'), hovertemplate='%{x}<br>LGB: %{y:,.0f} MW<extra></extra>'))
         fig.add_hline(y=threshold_90, line_dash="dot", line_color="#ff6b35", annotation_text=f"수요 대응 기준 {threshold_pct}% ({threshold_90:,.0f} MW)", annotation_position="top right")
-        fig.update_layout(
-            title=f'전국 전력 수요 실시간 예측 — {forecast_days}일' + (' (KPX 실시간 보정)' if used_kpx else ' (CSV 기반)'),
-            xaxis=dict(title='날짜', gridcolor='#e0e8f0'),
-            yaxis=dict(title='전력 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f'),
-            plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'),
-            legend=dict(bgcolor='white', bordercolor='#d0e4f7'), hovermode='x unified', height=500)
+        fig.update_layout(title=f'전국 전력 수요 실시간 예측 — {forecast_days}일', xaxis=dict(title='날짜', gridcolor='#e0e8f0'), yaxis=dict(title='전력 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f'), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), legend=dict(bgcolor='white', bordercolor='#d0e4f7'), hovermode='x unified', height=500)
         st.plotly_chart(fig, use_container_width=True)
 
         st.markdown(f"### 🌡️ {selected_station_name} 기상 데이터 (전국 수요 영향 분석)")
@@ -405,15 +387,20 @@ if model_loaded:
                 fig_humi.update_layout(title='습도 (%)', xaxis=dict(gridcolor='#e0e8f0'), yaxis=dict(title='습도 (%)', gridcolor='#e0e8f0'), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=300)
                 st.plotly_chart(fig_humi, use_container_width=True)
 
-        st.markdown("### ⏰ 오늘 시간대별 수요 예측")
-        today_hourly = today_df.copy()
-        today_hourly['시간'] = pd.to_datetime(today_hourly['날짜시간']).dt.hour
-        hourly = today_hourly.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
+        st.markdown("### ⏰ 시간대별 평균 수요 패턴")
+        try:
+            raw_df = pd.read_csv(os.path.join(BASE_PATH, 'forecast_30d_서울.csv'), encoding='utf-8-sig')
+            raw_df['날짜시간'] = pd.to_datetime(raw_df['날짜시간'])
+            raw_df['시간'] = raw_df['날짜시간'].dt.hour
+            hourly = raw_df.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
+        except:
+            forecast_df['시간'] = forecast_df['날짜시간'].dt.hour
+            hourly = forecast_df.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
         fig2 = go.Figure()
-        fig2.add_trace(go.Bar(x=hourly['시간'], y=hourly['앙상블예측(MW)'], marker_color='#1565c0', opacity=0.8, hovertemplate='%{x}시<br>예측: %{y:,.0f} MW<extra></extra>'))
+        fig2.add_trace(go.Bar(x=hourly['시간'], y=hourly['앙상블예측(MW)'], marker_color='#1565c0', opacity=0.8, hovertemplate='%{x}시<br>평균: %{y:,.0f} MW<extra></extra>'))
         y_min = hourly['앙상블예측(MW)'].min() * 0.97
         y_max = hourly['앙상블예측(MW)'].max() * 1.02
-        fig2.update_layout(xaxis=dict(title='시간 (시)', tickmode='linear', gridcolor='#e0e8f0'), yaxis=dict(title='예측 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f', range=[y_min, y_max]), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=350)
+        fig2.update_layout(xaxis=dict(title='시간 (시)', tickmode='linear', gridcolor='#e0e8f0'), yaxis=dict(title='평균 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f', range=[y_min, y_max]), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=350)
         st.plotly_chart(fig2, use_container_width=True)
 
     with tab2:
@@ -486,8 +473,7 @@ if model_loaded:
                 (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M'),
                 f'{forecast_days}일', selected_station_name,
                 f'{avg_demand:,.1f} MW', f'{max_demand:,.1f} MW', f'{min_demand:,.1f} MW',
-                f'{avg_gen:,.1f} MW', '0.32%',
-                '✅ MAPE ≤ 2.6% 달성'
+                f'{avg_gen:,.1f} MW', '0.32%', '✅ MAPE ≤ 2.6% 달성'
             ]
         }
         st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
@@ -525,7 +511,6 @@ if model_loaded:
             - 평균 발전량 기준(×1.149): {avg_gen:,.0f} MW
             - 앙상블 가중치: XGB {weights[0]:.3f}, LGB {weights[1]:.3f}
             - 수요 대응 기준({threshold_pct}%): {threshold_90:,.0f} MW
-            - KPX 실시간 보정: {'적용됨 — 현재 실제 수요 기반으로 예측값 보정' if used_kpx else '미적용 (KPX IP 차단으로 CSV 기반 예측)'}
             위 정보를 바탕으로 친절하고 전문적으로 한국어로 답변해주세요.
             """
             try:
