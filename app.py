@@ -405,20 +405,15 @@ if model_loaded:
                 fig_humi.update_layout(title='습도 (%)', xaxis=dict(gridcolor='#e0e8f0'), yaxis=dict(title='습도 (%)', gridcolor='#e0e8f0'), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=300)
                 st.plotly_chart(fig_humi, use_container_width=True)
 
-        st.markdown("### ⏰ 시간대별 평균 수요 패턴")
-        try:
-            raw_df = pd.read_csv(os.path.join(BASE_PATH, 'forecast_30d_서울.csv'), encoding='utf-8-sig')
-            raw_df['날짜시간'] = pd.to_datetime(raw_df['날짜시간'])
-            raw_df['시간'] = raw_df['날짜시간'].dt.hour
-            hourly = raw_df.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
-        except:
-            forecast_df['시간'] = forecast_df['날짜시간'].dt.hour
-            hourly = forecast_df.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
+        st.markdown("### ⏰ 오늘 시간대별 수요 예측")
+        today_hourly = today_df.copy()
+        today_hourly['시간'] = pd.to_datetime(today_hourly['날짜시간']).dt.hour
+        hourly = today_hourly.groupby('시간')['앙상블예측(MW)'].mean().reset_index()
         fig2 = go.Figure()
-        fig2.add_trace(go.Bar(x=hourly['시간'], y=hourly['앙상블예측(MW)'], marker_color='#1565c0', opacity=0.8, hovertemplate='%{x}시<br>평균: %{y:,.0f} MW<extra></extra>'))
+        fig2.add_trace(go.Bar(x=hourly['시간'], y=hourly['앙상블예측(MW)'], marker_color='#1565c0', opacity=0.8, hovertemplate='%{x}시<br>예측: %{y:,.0f} MW<extra></extra>'))
         y_min = hourly['앙상블예측(MW)'].min() * 0.97
         y_max = hourly['앙상블예측(MW)'].max() * 1.02
-        fig2.update_layout(xaxis=dict(title='시간 (시)', tickmode='linear', gridcolor='#e0e8f0'), yaxis=dict(title='평균 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f', range=[y_min, y_max]), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=350)
+        fig2.update_layout(xaxis=dict(title='시간 (시)', tickmode='linear', gridcolor='#e0e8f0'), yaxis=dict(title='예측 수요 (MW)', gridcolor='#e0e8f0', tickformat=',.0f', range=[y_min, y_max]), plot_bgcolor='white', paper_bgcolor='white', font=dict(color='#1a2a4a'), height=350)
         st.plotly_chart(fig2, use_container_width=True)
 
     with tab2:
